@@ -37,8 +37,18 @@ import streamkv.types.KVOperation;
 import streamkv.types.KVOperationTypeInfo;
 import streamkv.types.KVTypeInfo;
 import streamkv.util.KVUtils;
-import streamkv.util.KVUtils.KVOpKeySelector;
 
+/**
+ * Fully asynchronous {@link KVStore} implementation where all operations are
+ * executed in arrival order (governed by the standard Flink partial ordering
+ * guarantees). While this implementation provides maximal performance it does
+ * not provide any deterministic processing guarantee.
+ * 
+ * @param <K>
+ *            Type of the keys.
+ * @param <V>
+ *            Type of the values.
+ */
 @SuppressWarnings("rawtypes")
 public class AsyncKVStore<K, V> implements KVStore<K, V> {
 	private List<Tuple2<DataStream<Tuple2<K, V>>, Integer>> put = new ArrayList<>();
@@ -100,32 +110,36 @@ public class AsyncKVStore<K, V> implements KVStore<K, V> {
 				kvType.getValueType());
 
 		for (Tuple2<DataStream<Tuple2<K, V>>, Integer> query : put) {
-			opStream.add(query.f0.groupBy(new KeySelector<Tuple2<K, V>, K>() {
-				private static final long serialVersionUID = 1L;
-
-				@Override
-				public K getKey(Tuple2<K, V> value) throws Exception {
-					return value.f0;
-				}
-
-			}).map(new KVUtils.ToPut<K, V>(query.f1)).returns(kvOpType));
+			opStream.add(query.f0.map(new KVUtils.ToPut<K, V>(query.f1)).returns(kvOpType)
+					.groupBy(new KVUtils.KVOpKeySelector<K, V>()));
 		}
 		for (Tuple2<DataStream<K>, Integer> query : get) {
-			opStream.add(query.f0.groupBy(new KVUtils.SelfKeyExtractor<K>())
-					.map(new KVUtils.ToGet<K, V>(query.f1)).returns(kvOpType));
+			opStream.add(query.f0.map(new KVUtils.ToGet<K, V>(query.f1)).returns(kvOpType)
+					.groupBy(new KVUtils.KVOpKeySelector<K, V>()));
 		}
 		for (Tuple2<DataStream<K>, Integer> query : remove) {
-			opStream.add(query.f0.groupBy(new KVUtils.SelfKeyExtractor<K>())
-					.map(new KVUtils.ToRemove<K, V>(query.f1)).returns(kvOpType));
+			opStream.add(query.f0.map(new KVUtils.ToRemove<K, V>(query.f1)).returns(kvOpType)
+					.groupBy(new KVUtils.KVOpKeySelector<K, V>()));
 		}
 		for (Tuple3<DataStream, KeySelector, Integer> query : sget) {
 			kvOpType.registerExtractor(query.f2, query.f0.getType(), query.f1);
-			opStream.add(query.f0.groupBy(query.f1).map(new KVUtils.ToSGet<>(query.f2)).returns(kvOpType));
+			final KeySelector ks = query.f1;
+			opStream.add(query.f0.map(new KVUtils.ToSGet<>(query.f2)).returns(kvOpType)
+					.groupBy(new KeySelector<KVOperation<K, V>, K>() {
+
+						private static final long serialVersionUID = 8123229428587687470L;
+						KeySelector selector = ks;
+
+						@Override
+						public K getKey(KVOperation<K, V> value) throws Exception {
+							return (K) selector.getKey(value.getRecord());
+						}
+
+					}));
 		}
 		for (Tuple2<DataStream<K[]>, Integer> query : multiGet) {
-
 			opStream.add(query.f0.flatMap(new KVUtils.ToMGet<K, V>(query.f1)).returns(kvOpType)
-					.groupBy(new KVOpKeySelector<K, V>()));
+					.groupBy(new KVUtils.KVOpKeySelector<K, V>()));
 		}
 
 		DataStream<KVOperation<K, V>> input = opStream.get(0);

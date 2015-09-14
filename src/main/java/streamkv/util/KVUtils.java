@@ -253,27 +253,6 @@ public class KVUtils {
 		}
 	}
 
-	public static class KVKeySelector<K, V> implements KeySelector<KV<K, V>, K> {
-
-		private static final long serialVersionUID = 1L;
-
-		@Override
-		public K getKey(KV<K, V> value) throws Exception {
-			return value.getKey();
-		}
-
-	}
-
-	public static class SelfKeyExtractor<K> implements KeySelector<K, K> {
-		private static final long serialVersionUID = 1L;
-
-		@Override
-		public K getKey(K value) throws Exception {
-			return value;
-		}
-
-	}
-
 	public static class OperationIDSelector<K, V> implements KeySelector<KVOperation<K, V>, Long> {
 
 		private static final long serialVersionUID = 1L;

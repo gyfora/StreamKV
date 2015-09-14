@@ -7,7 +7,7 @@ Key-value operations (put, get, remove...) and their outputs are represented as 
 StreamKV also supports timestamped operations, which will be executed in an ordered manner using Flink's watermark mechanism.
 
 ```java
-	// Create a new Key-Value store
+	// Create a new KV store
 	KVStore<String, Integer> store = new AsyncKVStore<>();
 
 	// Create query streams
@@ -15,7 +15,7 @@ StreamKV also supports timestamped operations, which will be executed in an orde
 	DataStream<String> getStream = ...
 	DataStream<String[]> multiGetStream = ...
 
-	// Apply the query streams to the kv store
+	// Apply the query streams to the KV store
 	store.put(putStream);
 	int id1 = store.get(getStream);
     int id2 = store.multiGet(multiGetStream);

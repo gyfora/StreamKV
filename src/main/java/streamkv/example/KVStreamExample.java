@@ -39,7 +39,7 @@ public class KVStreamExample {
 
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-		// Create a new Key-Value store
+		// Create a new KV store
 		KVStore<String, Integer> store = new AsyncKVStore<>();
 
 		// Create query streams
@@ -48,7 +48,7 @@ public class KVStreamExample {
 		DataStream<String> getStream1 = env.socketTextStream("localhost", 9998);
 		DataStream<String[]> getStream2 = env.socketTextStream("localhost", 9997).flatMap(new KArrayParser());
 
-		// Apply the query streams to the kv store
+		// Apply the query streams to the KV store
 		store.put(putStream);
 		int id1 = store.get(getStream1);
 		int id2 = store.multiGet(getStream2);

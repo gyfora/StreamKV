@@ -17,11 +17,35 @@
 
 package streamkv.api;
 
+import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.streaming.api.functions.source.EventTimeSourceFunction;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 
 import streamkv.operator.TimestampedKVStoreOperator;
 import streamkv.types.KVOperation;
 
+/**
+ * {@link KVStore} implementation that executes operations in time order. Time
+ * can be ingress time by default or custom event timestamps and watermarks can
+ * be provided by the source implementations. There is no ordering guarantee
+ * among elements bearing the same timestamps.
+ * 
+ * <p>
+ * This implementation provides deterministic processing guarantees given that
+ * each record has a unique timestamp.
+ * </p>
+ * 
+ * <p>
+ * Record timestamps need to be enabled by calling
+ * {@link ExecutionConfig#enableTimestamps()}.
+ * </p>
+ * 
+ * @see {@link EventTimeSourceFunction}
+ * @param <K>
+ *            Type of the keys.
+ * @param <V>
+ *            Type of the values.
+ */
 public class TimestampedKVStore<K, V> extends AsyncKVStore<K, V> {
 
 	@Override
