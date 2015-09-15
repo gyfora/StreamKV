@@ -22,9 +22,9 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.base.GenericArraySerializer;
 
-import streamkv.api.KV;
+import org.apache.flink.api.java.tuple.Tuple2;
 
-public class KVArrayTypeInfo<K, V> extends TypeInformation<KV<K, V>[]> {
+public class KVArrayTypeInfo<K, V> extends TypeInformation<Tuple2<K, V>[]> {
 
 	private static final long serialVersionUID = 1L;
 	private KVTypeInfo<K, V> kvType;
@@ -54,7 +54,7 @@ public class KVArrayTypeInfo<K, V> extends TypeInformation<KV<K, V>[]> {
 	}
 
 	@Override
-	public Class<KV<K, V>[]> getTypeClass() {
+	public Class<Tuple2<K, V>[]> getTypeClass() {
 		return null;
 	}
 
@@ -64,7 +64,7 @@ public class KVArrayTypeInfo<K, V> extends TypeInformation<KV<K, V>[]> {
 	}
 
 	@Override
-	public TypeSerializer<KV<K, V>[]> createSerializer(ExecutionConfig config) {
+	public TypeSerializer<Tuple2<K, V>[]> createSerializer(ExecutionConfig config) {
 		return new GenericArraySerializer<>(kvType.getTypeClass(), kvType.createSerializer(config));
 	}
 

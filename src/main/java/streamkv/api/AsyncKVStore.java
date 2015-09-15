@@ -106,7 +106,7 @@ public class AsyncKVStore<K, V> implements KVStore<K, V> {
 			throw new RuntimeException("At least one Put stream needs to be added.");
 		}
 
-		// Create type informations based on the inputs
+		// Create type information based on the inputs
 		final TupleTypeInfo<Tuple2<K, V>> tupleType = (TupleTypeInfo<Tuple2<K, V>>) put.get(0).f0.getType();
 		final KVTypeInfo<K, V> kvType = new KVTypeInfo<>((TypeInformation<K>) tupleType.getTypeAt(0),
 				(TypeInformation<V>) tupleType.getTypeAt(1));
@@ -161,21 +161,21 @@ public class AsyncKVStore<K, V> implements KVStore<K, V> {
 				.split(new KVUtils.IDOutputSelector<K, V>());
 
 		// Create a map for each output stream type
-		Map<Integer, DataStream<KV<K, V>>> keyValueStreams = new HashMap<>();
+		Map<Integer, DataStream<Tuple2<K, V>>> keyValueStreams = new HashMap<>();
 		Map<Integer, DataStream> customKeyValueStreams = new HashMap<>();
-		Map<Integer, DataStream<KV<K, V>[]>> keyValueArrayStreams = new HashMap<>();
+		Map<Integer, DataStream<Tuple2<K, V>[]>> keyValueArrayStreams = new HashMap<>();
 
 		// For each query, we select the query ID from the SplitDataStream and
 		// convert the results back from KVOperation to the proper output type
 
 		for (Tuple2<DataStream<K>, Integer> query : get) {
-			DataStream<KV<K, V>> projected = split.select(query.f1.toString()).map(new KVUtils.ToKV<K, V>())
+			DataStream<Tuple2<K, V>> projected = split.select(query.f1.toString()).map(new KVUtils.ToKV<K, V>())
 					.returns(new KVTypeInfo<>(kvOpType.keyType, kvOpType.valueType));
 			keyValueStreams.put(query.f1, projected);
 		}
 
 		for (Tuple2<DataStream<K>, Integer> query : remove) {
-			DataStream<KV<K, V>> projected = split.select(query.f1.toString()).map(new KVUtils.ToKV<K, V>())
+			DataStream<Tuple2<K, V>> projected = split.select(query.f1.toString()).map(new KVUtils.ToKV<K, V>())
 					.returns(kvType);
 			keyValueStreams.put(query.f1, projected);
 		}
@@ -187,7 +187,7 @@ public class AsyncKVStore<K, V> implements KVStore<K, V> {
 		}
 
 		for (Tuple2<DataStream<K[]>, Integer> query : multiGet) {
-			DataStream<KV<K, V>[]> projected = split.select(query.f1.toString())
+			DataStream<Tuple2<K, V>[]> projected = split.select(query.f1.toString())
 					.groupBy(new KVUtils.OperationIDSelector<K, V>()).flatMap(new KVUtils.MGetMerge<K, V>())
 					.returns(new KVArrayTypeInfo<>(kvType));
 			keyValueArrayStreams.put(query.f1, projected);

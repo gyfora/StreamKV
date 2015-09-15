@@ -19,6 +19,7 @@ package streamkv.api;
 
 import java.util.Map;
 
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
 
 /**
@@ -39,12 +40,12 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 @SuppressWarnings("rawtypes")
 public class KVStoreOutput<K, V> {
 
-	private Map<Integer, DataStream<KV<K, V>>> keyValueStreams;
+	private Map<Integer, DataStream<Tuple2<K, V>>> keyValueStreams;
 	private Map<Integer, DataStream> customKeyValueStreams;
-	private Map<Integer, DataStream<KV<K, V>[]>> keyValueArrayStreams;
+	private Map<Integer, DataStream<Tuple2<K, V>[]>> keyValueArrayStreams;
 
-	public KVStoreOutput(Map<Integer, DataStream<KV<K, V>>> keyValueStreams, Map<Integer, DataStream> customKeyValueStreams,
-			Map<Integer, DataStream<KV<K, V>[]>> keyValueArrayStreams) {
+	public KVStoreOutput(Map<Integer, DataStream<Tuple2<K, V>>> keyValueStreams, Map<Integer, DataStream> customKeyValueStreams,
+			Map<Integer, DataStream<Tuple2<K, V>[]>> keyValueArrayStreams) {
 		this.keyValueStreams = keyValueStreams;
 		this.customKeyValueStreams = customKeyValueStreams;
 		this.keyValueArrayStreams = keyValueArrayStreams;
@@ -57,7 +58,7 @@ public class KVStoreOutput<K, V> {
 	 * @param queryID
 	 * @return The resulting (key, value) stream.
 	 */
-	public DataStream<KV<K, V>> getKVStream(int queryID) {
+	public DataStream<Tuple2<K, V>> getKVStream(int queryID) {
 		if (keyValueStreams.containsKey(queryID)) {
 			return keyValueStreams.get(queryID);
 		} else {
@@ -72,7 +73,7 @@ public class KVStoreOutput<K, V> {
 	 * @return The resulting (record, value) stream.
 	 */
 	@SuppressWarnings("unchecked")
-	public <X> DataStream<KV<X, V>> getCustomKVStream(int queryID) {
+	public <X> DataStream<Tuple2<X, V>> getCustomKVStream(int queryID) {
 		if (customKeyValueStreams.containsKey(queryID)) {
 			return customKeyValueStreams.get(queryID);
 		} else {
@@ -87,7 +88,7 @@ public class KVStoreOutput<K, V> {
 	 * @param queryID
 	 * @return The resulting (key, value) array stream.
 	 */
-	public <X> DataStream<KV<K, V>[]> getKVArrayStream(int queryID) {
+	public <X> DataStream<Tuple2<K, V>[]> getKVArrayStream(int queryID) {
 		if (keyValueArrayStreams.containsKey(queryID)) {
 			return keyValueArrayStreams.get(queryID);
 		} else {

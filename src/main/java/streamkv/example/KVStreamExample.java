@@ -27,7 +27,6 @@ import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.util.Collector;
 
 import streamkv.api.AsyncKVStore;
-import streamkv.api.KV;
 import streamkv.api.KVStore;
 import streamkv.api.KVStoreOutput;
 
@@ -109,12 +108,12 @@ public class KVStreamExample {
 		}
 	}
 
-	public static class PrintArray implements SinkFunction<KV<String, Integer>[]> {
+	public static class PrintArray implements SinkFunction<Tuple2<String, Integer>[]> {
 
 		private static final long serialVersionUID = 1L;
 
 		@Override
-		public void invoke(KV<String, Integer>[] value) throws Exception {
+		public void invoke(Tuple2<String, Integer>[] value) throws Exception {
 			System.out.println(Arrays.toString(value));
 		}
 

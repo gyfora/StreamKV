@@ -51,18 +51,6 @@ public class TSKVStreamExample {
 				Tuple3.of("a", -1, 3L),
 				Tuple3.of("b", -1, 8L), 
 				Tuple3.of("c", -1, 12L)));
-		
-		/**
-		 * Tuple2.of(KV.of("a", 1), 1L),
-		 * Tuple2.of(KV.of("a", -1), 3L), 
-		 * Tuple2.of(KV.of("a", 2), 5L),
-		 * Tuple2.of(KV.of("b", 1), 6L), 
-		 * Tuple2.of(KV.of("a", 3), 7L),
-		 * Tuple2.of(KV.of("c", 1), 8L), 
-		 * Tuple2.of(KV.of("b", -1), 8L),
-		 * Tuple2.of(KV.of("c", 2), 10L), 
-		 * Tuple2.of(KV.of("c", -1), 12L),
-		 */
 
 		DataStream<Tuple2<String, Long>> get = env.addSource(new GetSource(
 				Tuple2.of("a",2L),

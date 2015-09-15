@@ -17,11 +17,6 @@
 
 package streamkv.util;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
-
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.common.state.OperatorState;
@@ -30,11 +25,14 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.util.Collector;
-
-import streamkv.api.KV;
 import streamkv.api.KVStore;
 import streamkv.types.KVOperation;
 import streamkv.types.KVOperation.KVOperationType;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Random;
 
 /**
  * This class contains utilities for converting input and outputs to and from
@@ -149,39 +147,39 @@ public class KVUtils {
 		}
 	}
 
-	public static class ToKV<K, V> extends RichMapFunction<KVOperation<K, V>, KV<K, V>> {
+	public static class ToKV<K, V> extends RichMapFunction<KVOperation<K, V>, Tuple2<K, V>> {
 
 		private static final long serialVersionUID = 1L;
-		private KV<K, V> reuse;
+		private Tuple2<K, V> reuse;
 
 		@Override
-		public KV<K, V> map(KVOperation<K, V> op) throws Exception {
-			reuse.setKey(op.getKey());
-			reuse.setValue(op.getValue());
+		public Tuple2<K, V> map(KVOperation<K, V> op) throws Exception {
+			reuse.setField(op.getKey(), 0);
+			reuse.setField(op.getValue(), 1);
 			return reuse;
 		}
 
 		@Override
 		public void open(Configuration c) {
-			reuse = new KV<>();
+			reuse = new Tuple2<>();
 		}
 	}
 
-	public static class ToSKV<K, V> extends RichMapFunction<KVOperation<K, V>, KV<Object, V>> {
+	public static class ToSKV<K, V> extends RichMapFunction<KVOperation<K, V>, Tuple2<Object, V>> {
 
 		private static final long serialVersionUID = 1L;
-		private KV<Object, V> reuse;
+		private Tuple2<Object, V> reuse;
 
 		@Override
-		public KV<Object, V> map(KVOperation<K, V> op) throws Exception {
-			reuse.setKey(op.getRecord());
-			reuse.setValue(op.getValue());
+		public Tuple2<Object, V> map(KVOperation<K, V> op) throws Exception {
+			reuse.setField(op.getKey(), 0);
+			reuse.setField(op.getValue(), 1);
 			return reuse;
 		}
 
 		@Override
 		public void open(Configuration c) {
-			reuse = new KV<>();
+			reuse = new Tuple2<>();
 		}
 	}
 
@@ -216,18 +214,18 @@ public class KVUtils {
 		}
 	}
 
-	public static class MGetMerge<K, V> extends RichFlatMapFunction<KVOperation<K, V>, KV<K, V>[]> {
+	public static class MGetMerge<K, V> extends RichFlatMapFunction<KVOperation<K, V>, Tuple2<K, V>[]> {
 
 		private static final long serialVersionUID = 1L;
 
 		@SuppressWarnings("rawtypes")
-		private OperatorState<Tuple2<Integer, KV[]>> merged;
+		private OperatorState<Tuple2<Integer, Tuple2[]>> merged;
 
 		@SuppressWarnings("unchecked")
 		@Override
-		public void flatMap(KVOperation<K, V> next, Collector<KV<K, V>[]> out) throws Exception {
+		public void flatMap(KVOperation<K, V> next, Collector<Tuple2<K, V>[]> out) throws Exception {
 			@SuppressWarnings("rawtypes")
-			Tuple2<Integer, KV[]> partial = merged.value();
+			Tuple2<Integer, Tuple2[]> partial = merged.value();
 			short numKeys = next.getNumKeys();
 
 			if (numKeys == 0) {
@@ -236,11 +234,11 @@ public class KVUtils {
 
 			if (partial.f1 == null) {
 				partial.f0 = (int) numKeys - 1;
-				partial.f1 = new KV[numKeys];
-				partial.f1[0] = KV.of(next.getKey(), next.getValue());
+				partial.f1 = new Tuple2[numKeys];
+				partial.f1[0] = Tuple2.of(next.getKey(), next.getValue());
 			} else {
 				partial.f0 -= 1;
-				partial.f1[numKeys - partial.f0 - 1] = KV.of(next.getKey(), next.getValue());
+				partial.f1[numKeys - partial.f0 - 1] = Tuple2.of(next.getKey(), next.getValue());
 			}
 
 			if (partial.f0 == 0) {
@@ -255,7 +253,7 @@ public class KVUtils {
 		@SuppressWarnings("rawtypes")
 		@Override
 		public void open(Configuration conf) throws IOException {
-			merged = getRuntimeContext().getOperatorState("merged", Tuple2.<Integer, KV[]> of(null, null),
+			merged = getRuntimeContext().getOperatorState("merged", Tuple2.<Integer, Tuple2[]> of(null, null),
 					true);
 		}
 	}

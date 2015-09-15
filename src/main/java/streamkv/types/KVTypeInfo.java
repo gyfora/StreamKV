@@ -17,17 +17,16 @@
 
 package streamkv.types;
 
-import java.io.IOException;
-
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
 
-import streamkv.api.KV;
+import java.io.IOException;
 
-public class KVTypeInfo<K, V> extends TypeInformation<KV<K, V>> {
+public class KVTypeInfo<K, V> extends TypeInformation<Tuple2<K, V>> {
 
 	private static final long serialVersionUID = 1L;
 	private TypeInformation<K> keyType;
@@ -68,9 +67,9 @@ public class KVTypeInfo<K, V> extends TypeInformation<KV<K, V>> {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public Class<KV<K, V>> getTypeClass() {
-		KV<K, V> instance = new KV<K, V>();
-		return (Class<KV<K, V>>) instance.getClass();
+	public Class<Tuple2<K, V>> getTypeClass() {
+		Tuple2<K, V> instance = new Tuple2<>();
+		return (Class<Tuple2<K, V>>) instance.getClass();
 	}
 
 	@Override
@@ -79,11 +78,11 @@ public class KVTypeInfo<K, V> extends TypeInformation<KV<K, V>> {
 	}
 
 	@Override
-	public TypeSerializer<KV<K, V>> createSerializer(ExecutionConfig config) {
+	public TypeSerializer<Tuple2<K, V>> createSerializer(ExecutionConfig config) {
 		return new KVSerializer<>(keyType.createSerializer(config), valueType.createSerializer(config));
 	}
 
-	private static class KVSerializer<K, V> extends TypeSerializer<KV<K, V>> {
+	private static class KVSerializer<K, V> extends TypeSerializer<Tuple2<K, V>> {
 
 		private static final long serialVersionUID = 1L;
 		TypeSerializer<K> keySerializer;
@@ -100,36 +99,30 @@ public class KVTypeInfo<K, V> extends TypeInformation<KV<K, V>> {
 		}
 
 		@Override
-		public TypeSerializer<KV<K, V>> duplicate() {
+		public TypeSerializer<Tuple2<K, V>> duplicate() {
 			return this;
 		}
 
 		@Override
-		public KV<K, V> createInstance() {
-			return new KV<K, V>();
+		public Tuple2<K, V> createInstance() {
+			return new Tuple2<>();
 		}
 
 		@Override
-		public KV<K, V> copy(KV<K, V> from) {
+		public Tuple2<K, V> copy(Tuple2<K, V> from) {
 			return copy(from, createInstance());
 		}
 
 		@Override
-		public KV<K, V> copy(KV<K, V> from, KV<K, V> reuse) {
-			K reuseK = reuse.getKey();
-			if (reuseK == null) {
-				reuse.setKey(keySerializer.copy(from.getKey()));
-			} else {
-				reuse.setKey(keySerializer.copy(from.getKey(), reuseK));
-			}
+		public Tuple2<K, V> copy(Tuple2<K, V> from, Tuple2<K, V> reuse) {
+			K reuseK = reuse.f0;
+			reuse.f0 = reuseK == null ?
+						keySerializer.copy(from.f0) : keySerializer.copy(from.f0, reuseK);
 
-			if (from.getValue() != null) {
-				V reuseV = reuse.getValue();
-				if (reuseV == null) {
-					reuse.setValue(valueSerializer.copy(from.getValue()));
-				} else {
-					reuse.setValue(valueSerializer.copy(from.getValue(), reuseV));
-				}
+			if (from.f1 != null) {
+				V reuseV = reuse.f1;
+				reuse.f1 = reuseV == null ?
+						valueSerializer.copy(from.f1) : valueSerializer.copy(from.f1, reuseV);
 			}
 			return reuse;
 		}
@@ -140,9 +133,9 @@ public class KVTypeInfo<K, V> extends TypeInformation<KV<K, V>> {
 		}
 
 		@Override
-		public void serialize(KV<K, V> record, DataOutputView target) throws IOException {
-			K key = record.getKey();
-			V value = record.getValue();
+		public void serialize(Tuple2<K, V> record, DataOutputView target) throws IOException {
+			K key = record.f0;
+			V value = record.f1;
 
 			keySerializer.serialize(key, target);
 			target.writeBoolean(value != null);
@@ -152,19 +145,19 @@ public class KVTypeInfo<K, V> extends TypeInformation<KV<K, V>> {
 		}
 
 		@Override
-		public KV<K, V> deserialize(DataInputView source) throws IOException {
+		public Tuple2<K, V> deserialize(DataInputView source) throws IOException {
 			return deserialize(createInstance(), source);
 		}
 
 		@Override
-		public KV<K, V> deserialize(KV<K, V> reuse, DataInputView source) throws IOException {
-			reuse.setKey(keySerializer.deserialize(reuse.getKey(), source));
+		public Tuple2<K, V> deserialize(Tuple2<K, V> reuse, DataInputView source) throws IOException {
+			reuse.f0 = keySerializer.deserialize(reuse.f0, source);
 			if (source.readBoolean()) {
-				V reuseV = reuse.getValue();
-				reuse.setValue(valueSerializer.deserialize(
-						reuseV != null ? reuseV : valueSerializer.createInstance(), source));
+				V reuseV = reuse.f1;
+				reuse.f1 = valueSerializer.deserialize(
+						reuseV != null ? reuseV : valueSerializer.createInstance(), source);
 			} else {
-				reuse.setValue(null);
+				reuse.f1 = null;
 			}
 			return reuse;
 		}
