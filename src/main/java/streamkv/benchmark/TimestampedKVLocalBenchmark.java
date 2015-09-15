@@ -20,23 +20,27 @@ package streamkv.benchmark;
 import java.util.Random;
 
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.source.EventTimeSourceFunction;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
+import org.apache.flink.streaming.api.watermark.Watermark;
 
-import streamkv.api.AsyncKVStore;
 import streamkv.api.KVStore;
+import streamkv.api.TimestampedKVStore;
 
-public class AsyncKVLocalBenchmark extends LocalBenchmark {
+public class TimestampedKVLocalBenchmark extends LocalBenchmark {
 
 	private static final long serialVersionUID = 1L;
-
+	
 	private static final long ELEMENTS_PER_QUERY = 10_000_000L;
 	private static final int NUM_KEYS = 1000;
 	private static final int KEYS_PER_MGET = 10;
+	private static final int WATERMARK_FREQUENCY = 1000;
 
 	public static void main(String[] args) throws Exception {
-		LocalBenchmark bm = new AsyncKVLocalBenchmark();
-		bm.prefix = "Async";
+		LocalBenchmark bm = new TimestampedKVLocalBenchmark();
+		bm.prefix = "Timestamped";
 		bm.benchmarkGet();
 		bm.benchmarkSelectorGet();
 		bm.benchmarkMultiget();
@@ -59,10 +63,16 @@ public class AsyncKVLocalBenchmark extends LocalBenchmark {
 
 	@Override
 	protected KVStore<Integer, Integer> getStore() {
-		return new AsyncKVStore<>();
+		return new TimestampedKVStore<>();
 	}
 
-	public static class PutGenerator extends RichParallelSourceFunction<Tuple2<Integer, Integer>> {
+	@Override
+	protected void setupEnv(StreamExecutionEnvironment env) {
+		env.getConfig().enableTimestamps();
+	}
+
+	public static class PutGenerator extends RichParallelSourceFunction<Tuple2<Integer, Integer>> implements
+			EventTimeSourceFunction<Tuple2<Integer, Integer>> {
 		private static final long serialVersionUID = 1L;
 		private volatile boolean isRunning = false;
 		private long numElements;
@@ -78,6 +88,7 @@ public class AsyncKVLocalBenchmark extends LocalBenchmark {
 			isRunning = true;
 
 			Random rnd = new Random();
+			long time = 0;
 			long maxCount = numElements / getRuntimeContext().getNumberOfParallelSubtasks();
 			long c = 0;
 			Tuple2<Integer, Integer> reuse = new Tuple2<>();
@@ -85,7 +96,11 @@ public class AsyncKVLocalBenchmark extends LocalBenchmark {
 			while (isRunning && c++ < maxCount) {
 				reuse.f0 = rnd.nextInt(numKeys);
 				reuse.f1 = rnd.nextInt();
-				ctx.collect(reuse);
+				ctx.collectWithTimestamp(reuse, time++);
+				if (c % WATERMARK_FREQUENCY == 0) {
+					ctx.emitWatermark(new Watermark(time));
+					Thread.sleep(1);
+				}
 			}
 
 		}
@@ -96,7 +111,8 @@ public class AsyncKVLocalBenchmark extends LocalBenchmark {
 		}
 	}
 
-	public static class GetGenerator extends RichParallelSourceFunction<Integer> {
+	public static class GetGenerator extends RichParallelSourceFunction<Integer> implements
+			EventTimeSourceFunction<Integer> {
 		private static final long serialVersionUID = 1L;
 		private volatile boolean isRunning = false;
 		private long numElements;
@@ -112,11 +128,16 @@ public class AsyncKVLocalBenchmark extends LocalBenchmark {
 			isRunning = true;
 
 			Random rnd = new Random();
+			long time = 0;
 			long maxCount = numElements / getRuntimeContext().getNumberOfParallelSubtasks();
 			long c = 0;
 
 			while (isRunning && c++ < maxCount) {
-				ctx.collect(rnd.nextInt(numKeys));
+				ctx.collectWithTimestamp(rnd.nextInt(numKeys), c++);
+				if (c % WATERMARK_FREQUENCY == 0) {
+					ctx.emitWatermark(new Watermark(time));
+					Thread.sleep(1);
+				}
 			}
 
 		}
@@ -127,7 +148,8 @@ public class AsyncKVLocalBenchmark extends LocalBenchmark {
 		}
 	}
 
-	public static class MultiGetGenerator extends RichParallelSourceFunction<Integer[]> {
+	public static class MultiGetGenerator extends RichParallelSourceFunction<Integer[]> implements
+			EventTimeSourceFunction<Integer[]> {
 		private static final long serialVersionUID = 1L;
 		private volatile boolean isRunning = false;
 		private long numElements;
@@ -145,6 +167,7 @@ public class AsyncKVLocalBenchmark extends LocalBenchmark {
 			isRunning = true;
 
 			Random rnd = new Random();
+			long time = 0;
 			long maxCount = numElements / getRuntimeContext().getNumberOfParallelSubtasks();
 			long c = 0;
 
@@ -153,7 +176,10 @@ public class AsyncKVLocalBenchmark extends LocalBenchmark {
 				for (int i = 0; i < keys.length; i++) {
 					keys[i] = rnd.nextInt(numKeys);
 				}
-				ctx.collect(keys);
+				ctx.collectWithTimestamp(keys, time++);
+				if (c % WATERMARK_FREQUENCY == 0) {
+					ctx.emitWatermark(new Watermark(time));
+				}
 			}
 
 		}

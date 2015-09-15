@@ -157,8 +157,9 @@ public class AsyncKVStore<K, V> implements KVStore<K, V> {
 
 		// Apply the operator that executes the KVStore logic then split the
 		// output by their query ID
-		SplitDataStream<KVOperation<K, V>> split = input.transform("KVStore", kvOpType, getKVOperator())
-				.split(new KVUtils.IDOutputSelector<K, V>());
+		OneInputStreamOperator<KVOperation<K, V>, KVOperation<K, V>> op = getKVOperator();
+		SplitDataStream<KVOperation<K, V>> split = input.transform(op.getClass().getSimpleName(), kvOpType,
+				op).split(new KVUtils.IDOutputSelector<K, V>());
 
 		// Create a map for each output stream type
 		Map<Integer, DataStream<Tuple2<K, V>>> keyValueStreams = new HashMap<>();
