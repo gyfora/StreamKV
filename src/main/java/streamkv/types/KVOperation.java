@@ -41,9 +41,7 @@ public class KVOperation<K, V> implements Serializable {
 		PUT, GET, REMOVE, MGET, SGET, GETRES, REMOVERES, MGETRES, SGETRES;
 	}
 
-	public static KVOperationType[] types = { KVOperationType.PUT, KVOperationType.GET,
-			KVOperationType.REMOVE, KVOperationType.MGET, KVOperationType.SGET, KVOperationType.GETRES,
-			KVOperationType.REMOVERES, KVOperationType.MGETRES, KVOperationType.SGETRES };
+	public static KVOperationType[] types = KVOperationType.values();
 
 	// General attributes
 	private KVOperationType type;

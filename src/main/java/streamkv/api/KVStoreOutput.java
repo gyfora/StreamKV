@@ -26,9 +26,9 @@ import org.apache.flink.streaming.api.datastream.DataStream;
  * from the applied operations. Each output stream can be accessed by calling
  * the respective methods:
  * <ul>
- * <li>{@link KVStore#get}, {@link KVStore#remove} => {@link #getKVStream(id)}</li>
- * <li>{@link KVStore#getWithKeySelector} => {@link #getCustomKVStream(id)}</li>
- * <li>{@link KVStore#multiGet} => {@link #getKVArrayStream(id)}</li>
+ * <li>{@link KVStore#get}, {@link KVStore#remove} => {@link #getKVStream(int)}</li>
+ * <li>{@link KVStore#getWithKeySelector} => {@link #getCustomKVStream(int)}</li>
+ * <li>{@link KVStore#multiGet} => {@link #getKVArrayStream(int)}</li>
  * </ul>
  * 
  * @param <K>

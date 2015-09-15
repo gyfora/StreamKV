@@ -31,8 +31,25 @@ import streamkv.api.KV;
 import streamkv.api.KVStore;
 import streamkv.api.KVStoreOutput;
 
-
-
+/**
+ * This example shows an implementation of a key value store with operations from
+ * text sockets. To run the example make sure that the service providing the text
+ * data is already up and running.
+ * <p>
+ * To start an example socket text stream on your local machine run netcat from
+ * a command line: <code>nc -lk 9999</code>, where the parameter specifies the
+ * port number. Make sure to start the services for both port 9999 (for put),
+ * 9998 (for get) and 9997 (for multiget).
+ *
+ * This example shows how to:
+ * <ul>
+ * <li>use the {@link KVStore} abstraction
+ * <li>put to the key-value store,
+ * <li>get and multiget from the key-value store.
+ * </ul>
+ *
+ * @see <a href="www.openbsd.org/cgi-bin/man.cgi?query=nc">netcat</a>
+ */
 public class KVStreamExample {
 
 	public static void main(String[] args) throws Exception {
