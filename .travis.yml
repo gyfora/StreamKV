@@ -1,0 +1,18 @@
+sudo: false
+
+cache:
+  directories:
+  - $HOME/.m2
+
+install: true
+
+language: java
+
+matrix:
+  include:
+    - jdk: "openjdk7"
+    - jdk: "oraclejdk8"
+
+git:
+  depth: 100
+
