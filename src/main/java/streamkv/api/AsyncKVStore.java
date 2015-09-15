@@ -167,22 +167,23 @@ public class AsyncKVStore<K, V> implements KVStore<K, V> {
 
 		// For each query, we select the query ID from the SplitDataStream and
 		// convert the results back from KVOperation to the proper output type
+		// using a non copying map operation
 
 		for (Tuple2<DataStream<K>, Integer> query : get) {
-			DataStream<Tuple2<K, V>> projected = split.select(query.f1.toString()).map(new KVUtils.ToKV<K, V>())
-					.returns(new KVTypeInfo<>(kvOpType.keyType, kvOpType.valueType));
+			DataStream<Tuple2<K, V>> projected = KVUtils.nonCopyingMap(split.select(query.f1.toString()),
+					kvType, new KVUtils.ToKV<K, V>());
 			keyValueStreams.put(query.f1, projected);
 		}
 
 		for (Tuple2<DataStream<K>, Integer> query : remove) {
-			DataStream<Tuple2<K, V>> projected = split.select(query.f1.toString()).map(new KVUtils.ToKV<K, V>())
-					.returns(kvType);
+			DataStream<Tuple2<K, V>> projected = KVUtils.nonCopyingMap(split.select(query.f1.toString()),
+					kvType, new KVUtils.ToKV<K, V>());
 			keyValueStreams.put(query.f1, projected);
 		}
 
 		for (Tuple3<DataStream, KeySelector, Integer> query : sget) {
-			DataStream projected = split.select(query.f2.toString()).map(new KVUtils.ToSKV<K, V>())
-					.returns(new KVTypeInfo(query.f0.getType(), kvOpType.valueType));
+			DataStream projected = KVUtils.nonCopyingMap(split.select(query.f2.toString()), new KVTypeInfo(
+					query.f0.getType(), kvOpType.valueType), new KVUtils.ToSKV<K, V>());
 			customKeyValueStreams.put(query.f2, projected);
 		}
 

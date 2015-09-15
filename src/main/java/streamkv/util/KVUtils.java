@@ -17,22 +17,27 @@
 
 package streamkv.util;
 
-import org.apache.flink.api.common.functions.RichFlatMapFunction;
-import org.apache.flink.api.common.functions.RichMapFunction;
-import org.apache.flink.api.common.state.OperatorState;
-import org.apache.flink.api.java.functions.KeySelector;
-import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.collector.selector.OutputSelector;
-import org.apache.flink.util.Collector;
-import streamkv.api.KVStore;
-import streamkv.types.KVOperation;
-import streamkv.types.KVOperation.KVOperationType;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
+
+import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.RichFlatMapFunction;
+import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.api.common.state.OperatorState;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.streaming.api.collector.selector.OutputSelector;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.operators.StreamMap;
+import org.apache.flink.util.Collector;
+
+import streamkv.api.KVStore;
+import streamkv.types.KVOperation;
+import streamkv.types.KVOperation.KVOperationType;
 
 /**
  * This class contains utilities for converting input and outputs to and from
@@ -253,8 +258,8 @@ public class KVUtils {
 		@SuppressWarnings("rawtypes")
 		@Override
 		public void open(Configuration conf) throws IOException {
-			merged = getRuntimeContext().getOperatorState("merged", Tuple2.<Integer, Tuple2[]> of(null, null),
-					true);
+			merged = getRuntimeContext().getOperatorState("merged",
+					Tuple2.<Integer, Tuple2[]> of(null, null), true);
 		}
 	}
 
@@ -276,6 +281,20 @@ public class KVUtils {
 		public Iterable<String> select(KVOperation<K, V> value) {
 			selected.set(0, "" + value.getQueryID());
 			return selected;
+		}
+	}
+
+	public static <I, O> DataStream<O> nonCopyingMap(DataStream<I> input, TypeInformation<O> outType,
+			MapFunction<I, O> mapper) {
+		return input.transform("NonCopyingMap", outType, new NonCopyingMap<>(mapper));
+	}
+
+	private static class NonCopyingMap<I, O> extends StreamMap<I, O> {
+		private static final long serialVersionUID = 1L;
+
+		public NonCopyingMap(MapFunction<I, O> mapper) {
+			super(mapper);
+			disableInputCopy();
 		}
 	}
 }

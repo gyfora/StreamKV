@@ -26,7 +26,7 @@ import org.junit.Test;
 
 import streamkv.types.KVOperation;
 
-public class AsyncKVStoreTest {
+public class AsyncKVStoreOperatorTest {
 
 	@Test
 	public void testKVOperator() throws Exception {
