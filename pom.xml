@@ -20,10 +20,10 @@ under the License.
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	
-    <name>Stremaing KV Store</name>
-    <groupId>streamkv</groupId>
-    <artifactId>streamkv</artifactId>
-	<version>1.0-SNAPSHOT</version>
+	<name>Streaming KV Store</name>
+	<groupId>org.apache.flink</groupId>
+	<artifactId>streamkv</artifactId>
+	<version>0.1-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
 	<properties>
@@ -45,21 +45,25 @@ under the License.
 	</repositories>
 	
 	<dependencies>
-		<dependency>
-			<groupId>org.apache.flink</groupId>
-			<artifactId>flink-java</artifactId>
-			<version>0.10-SNAPSHOT</version>
-		</dependency>
+
 		<dependency>
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-streaming-core</artifactId>
 			<version>0.10-SNAPSHOT</version>
 		</dependency>
+
 		<dependency>
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-clients</artifactId>
 			<version>0.10-SNAPSHOT</version>
 		</dependency>
+
+		<dependency>
+			<groupId>com.google.guava</groupId>
+			<artifactId>guava</artifactId>
+			<version>18.0</version>
+		</dependency>
+
 	</dependencies>
 
 	<build>
@@ -201,13 +205,40 @@ under the License.
 				<artifactId>maven-compiler-plugin</artifactId>
 				<version>3.1</version>
 				<configuration>
-					<source>1.7</source> <!-- If you want to use Java 8, change this to "1.8" -->
-					<target>1.7</target> <!-- If you want to use Java 8, change this to "1.8" -->
+					<source>1.7</source>
+					<target>1.7</target>
 				</configuration>
 			</plugin>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<version>2.2</version>
+				<executions>
+					<execution>
+						<goals>
+							<goal>test-jar</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-source-plugin</artifactId>
+				<version>2.2.1</version>
+				<executions>
+					<execution>
+						<id>attach-sources</id>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
-		
 	</build>
+
 	<profiles>
 		<profile>
 			<!-- A profile that does everyting correctly:
@@ -217,12 +248,6 @@ under the License.
 				<activeByDefault>false</activeByDefault>
 			</activation>
 			<dependencies>
-				<dependency>
-					<groupId>org.apache.flink</groupId>
-					<artifactId>flink-java</artifactId>
-					<version>0.10-SNAPSHOT</version>
-					<scope>provided</scope>
-				</dependency>
 				<dependency>
 					<groupId>org.apache.flink</groupId>
 					<artifactId>flink-streaming-core</artifactId>
@@ -236,6 +261,7 @@ under the License.
 					<scope>provided</scope>
 				</dependency>
 			</dependencies>
-		</profile>
+		</profile>	
 	</profiles>
+
 </project>
