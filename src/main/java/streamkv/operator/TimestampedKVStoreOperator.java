@@ -70,7 +70,8 @@ public class TimestampedKVStoreOperator<K, V> extends AsyncKVStoreOperator<K, V>
 				.iterator();
 
 		while (it.hasNext()) {
-			executeOperation(it.next().getValue(), reuse);
+			Entry<Long, KVOperation<K, V>> next = it.next();
+			executeOperation(next.getValue(), reuse.<KVOperation<K, V>> replace(null, next.getKey()));
 			it.remove();
 		}
 
