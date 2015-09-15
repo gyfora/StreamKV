@@ -172,7 +172,7 @@ public class KVUtils {
 
 		@Override
 		public Tuple2<Object, V> map(KVOperation<K, V> op) throws Exception {
-			reuse.setField(op.getKey(), 0);
+			reuse.setField(op.getRecord(), 0);
 			reuse.setField(op.getValue(), 1);
 			return reuse;
 		}

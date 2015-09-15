@@ -29,7 +29,6 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
 import streamkv.types.KVOperation;
-import streamkv.types.KVOperation.KVOperationType;
 
 /**
  * Asynchronous implementation of the KVStore operator, which executes
@@ -68,22 +67,20 @@ public class AsyncKVStoreOperator<K, V> extends AbstractStreamOperator<KVOperati
 			store.put(key, op.getValue());
 			break;
 		case GET:
-			output.collect(reuse.replace(new KVOperation<>(key, store.get(key), op.getQueryID(),
-					KVOperationType.GETRES)));
+			output.collect(reuse.replace(KVOperation.getRes(op.getQueryID(), key, store.get(key))));
 			break;
 		case MGET:
-			output.collect(reuse.replace(new KVOperation<>(key, store.get(key), op.getNumKeys(), op
-					.getOperationID(), op.getQueryID())));
+			output.collect(reuse.replace(KVOperation.multiGetRes(op.getQueryID(), key, store.get(key),
+					op.getNumKeys(), op.getOperationID())));
 			break;
 		case REMOVE:
-			output.collect(reuse.replace(new KVOperation<>(key, store.remove(key), op.getQueryID(),
-					KVOperationType.REMOVERES)));
+			output.collect(reuse.replace(KVOperation.removeRes(op.getQueryID(), key, store.remove(key))));
 			break;
 		case SGET:
 			Object record = op.getRecord();
 			KeySelector<Object, K> selector = op.getKeySelector();
-			output.collect(reuse.replace(new KVOperation<K, V>(record, store.get(selector.getKey(record)), op
-					.getQueryID())));
+			output.collect(reuse.replace(KVOperation.<K,V>selectorGetRes(op.getQueryID(),
+					record, store.get(selector.getKey(record)))));
 			break;
 		default:
 			throw new UnsupportedOperationException("Not implemented yet");

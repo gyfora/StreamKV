@@ -115,15 +115,8 @@ public class KVTypeInfo<K, V> extends TypeInformation<Tuple2<K, V>> {
 
 		@Override
 		public Tuple2<K, V> copy(Tuple2<K, V> from, Tuple2<K, V> reuse) {
-			K reuseK = reuse.f0;
-			reuse.f0 = reuseK == null ?
-						keySerializer.copy(from.f0) : keySerializer.copy(from.f0, reuseK);
-
-			if (from.f1 != null) {
-				V reuseV = reuse.f1;
-				reuse.f1 = reuseV == null ?
-						valueSerializer.copy(from.f1) : valueSerializer.copy(from.f1, reuseV);
-			}
+			reuse.f0 = copyWithReuse(from.f0, reuse.f0, keySerializer);
+			reuse.f1 = copyWithReuse(from.f1, reuse.f1, valueSerializer);
 			return reuse;
 		}
 
@@ -137,7 +130,12 @@ public class KVTypeInfo<K, V> extends TypeInformation<Tuple2<K, V>> {
 			K key = record.f0;
 			V value = record.f1;
 
-			keySerializer.serialize(key, target);
+			target.writeBoolean(key != null);
+
+			if (key != null) {
+				keySerializer.serialize(key, target);
+			}
+
 			target.writeBoolean(value != null);
 			if (value != null) {
 				valueSerializer.serialize(value, target);
@@ -151,20 +149,39 @@ public class KVTypeInfo<K, V> extends TypeInformation<Tuple2<K, V>> {
 
 		@Override
 		public Tuple2<K, V> deserialize(Tuple2<K, V> reuse, DataInputView source) throws IOException {
-			reuse.f0 = keySerializer.deserialize(reuse.f0, source);
-			if (source.readBoolean()) {
-				V reuseV = reuse.f1;
-				reuse.f1 = valueSerializer.deserialize(
-						reuseV != null ? reuseV : valueSerializer.createInstance(), source);
-			} else {
-				reuse.f1 = null;
-			}
+			reuse.f0 = deserializeWithReuse(source, reuse.f0, keySerializer);
+			reuse.f1 = deserializeWithReuse(source, reuse.f1, valueSerializer);
 			return reuse;
 		}
 
 		@Override
 		public void copy(DataInputView source, DataOutputView target) throws IOException {
 			throw new UnsupportedOperationException("Not implemented yet!");
+		}
+	}
+
+	public static <X> X copyWithReuse(X from, X reuse, TypeSerializer<X> serializer) {
+		if (from == null) {
+			return null;
+		} else {
+			if (reuse == null) {
+				return serializer.copy(from);
+			} else {
+				return serializer.copy(from, reuse);
+			}
+		}
+	}
+
+	private static <X> X deserializeWithReuse(DataInputView source, X reuse, TypeSerializer<X> serializer)
+			throws IOException {
+		if (source.readBoolean()) {
+			if (reuse == null) {
+				return serializer.deserialize(source);
+			} else {
+				return serializer.deserialize(reuse, source);
+			}
+		} else {
+			return null;
 		}
 	}
 

@@ -25,6 +25,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
 import streamkv.types.KVOperation.KVOperationType;
+import static streamkv.types.KVTypeInfo.copyWithReuse;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -155,32 +156,34 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 			case PUT:
 			case GETRES:
 			case REMOVERES:
-				to.setKey(keySerializer.copy(from.getKey(), to.getKey()));
-				to.setValue(valueSerializer.copy(from.getValue(), to.getValue()));
+				to.setKey(copyWithReuse(from.getKey(), to.getKey(), keySerializer));
+				to.setValue(copyWithReuse(from.getValue(), to.getValue(), valueSerializer));
 				break;
 			case GET:
 			case REMOVE:
-				to.setKey(keySerializer.copy(from.getKey(), to.getKey()));
+				to.setKey(copyWithReuse(from.getKey(), to.getKey(), keySerializer));
 				break;
 			case MGET:
-				to.setKey(keySerializer.copy(from.getKey(), to.getKey()));
+				to.setKey(copyWithReuse(from.getKey(), to.getKey(), keySerializer));
 				to.setOperationID(from.getOperationID());
 				to.setNumKeys(from.getNumKeys());
 				break;
 			case MGETRES:
-				to.setKey(keySerializer.copy(from.getKey(), to.getKey()));
-				to.setValue(valueSerializer.copy(from.getValue(), to.getValue()));
+				to.setKey(copyWithReuse(from.getKey(), to.getKey(), keySerializer));
+				to.setValue(copyWithReuse(from.getValue(), to.getValue(), valueSerializer));
 				to.setOperationID(from.getOperationID());
 				to.setNumKeys(from.getNumKeys());
 				break;
 			case SGET:
 				to.setKeySelector(from.getKeySelector());
-				to.setRecord(selectors.get(from.getQueryID()).f0.copy(from.getRecord()));
+				to.setRecord(copyWithReuse(from.getRecord(), to.getRecord(),
+						selectors.get(from.getQueryID()).f0));
 				break;
 			case SGETRES:
 				to.setKeySelector(from.getKeySelector());
-				to.setRecord(selectors.get(from.getQueryID()).f0.copy(from.getRecord()));
-				to.setValue(valueSerializer.copy(from.getValue(), to.getValue()));
+				to.setRecord(copyWithReuse(from.getRecord(), to.getRecord(),
+						selectors.get(from.getQueryID()).f0));
+				to.setValue(copyWithReuse(from.getValue(), to.getValue(), valueSerializer));
 				break;
 			default:
 				throw new UnsupportedOperationException();
@@ -227,41 +230,45 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 			case GETRES:
 				target.writeShort(5);
 				keySerializer.serialize(op.getKey(), target);
-				serializeVal(op, target);
+				serializeWithNull(op, target);
 				break;
 			case REMOVERES:
 				target.writeShort(6);
 				keySerializer.serialize(op.getKey(), target);
-				serializeVal(op, target);
+				serializeWithNull(op, target);
 				break;
 			case MGETRES:
 				target.writeShort(7);
 				keySerializer.serialize(op.getKey(), target);
-				serializeVal(op, target);
+				serializeWithNull(op, target);
 				target.writeLong(op.getOperationID());
 				target.writeShort(op.getNumKeys());
 				break;
 			case SGETRES:
 				target.writeShort(8);
 				selectors.get(op.getQueryID()).f0.serialize(op.getRecord(), target);
-				serializeVal(op, target);
+				serializeWithNull(op, target);
 				break;
 			default:
 				throw new RuntimeException("Invalid operation: " + op.getType().name());
 			}
 		}
 
-		private void serializeVal(KVOperation<K, V> op, DataOutputView target) throws IOException {
+		private void serializeWithNull(KVOperation<K, V> op, DataOutputView target) throws IOException {
 			boolean hasVal = op.getValue() != null;
 			target.writeBoolean(hasVal);
 			if (hasVal) {
 				valueSerializer.serialize(op.getValue(), target);
 			}
 		}
-
-		private V deserializeVal(V reuse, DataInputView source) throws IOException {
+		
+		private V deserializeWithNull(V reuse, DataInputView source) throws IOException {
 			if (source.readBoolean()) {
-				return valueSerializer.deserialize(reuse, source);
+				if (reuse == null) {
+					return valueSerializer.deserialize(source);
+				} else {
+					return valueSerializer.deserialize(reuse, source);
+				}
 			} else {
 				return null;
 			}
@@ -283,42 +290,39 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 
 			switch (type) {
 			case PUT:
-				op.setKey(keySerializer.deserialize(source));
-				op.setValue(valueSerializer.deserialize(source));
+				op.setKey(deserializeWithReuse(source, op.getKey(), keySerializer));
+				op.setValue(deserializeWithReuse(source, op.getValue(), valueSerializer));
+				break;
+			case GETRES:
+			case REMOVERES:
+				op.setKey(deserializeWithReuse(source, op.getKey(), keySerializer));
+				op.setValue(deserializeWithNull(op.getValue(), source));
 				break;
 			case GET:
-				op.setKey(keySerializer.deserialize(source));
+				op.setKey(deserializeWithReuse(source, op.getKey(), keySerializer));
 				break;
 			case REMOVE:
-				op.setKey(keySerializer.deserialize(source));
+				op.setKey(deserializeWithReuse(source, op.getKey(), keySerializer));
 				break;
 			case MGET:
-				op.setKey(keySerializer.deserialize(source));
+				op.setKey(deserializeWithReuse(source, op.getKey(), keySerializer));
 				op.setOperationID(source.readLong());
 				op.setNumKeys(source.readShort());
 				break;
 			case SGET:
 				Tuple2<TypeSerializer, KeySelector> selector = selectors.get(op.getQueryID());
 				op.setKeySelector(selector.f1);
-				op.setRecord(selector.f0.deserialize(source));
-				break;
-			case GETRES:
-				op.setKey(keySerializer.deserialize(source));
-				op.setValue(deserializeVal(op.getValue(), source));
-				break;
-			case REMOVERES:
-				op.setKey(keySerializer.deserialize(source));
-				op.setValue(deserializeVal(op.getValue(), source));
+				op.setRecord(deserializeWithReuse(source, op.getRecord(), selector.f0));
 				break;
 			case MGETRES:
-				op.setKey(keySerializer.deserialize(source));
-				op.setValue(deserializeVal(op.getValue(), source));
+				op.setKey(deserializeWithReuse(source, op.getKey(), keySerializer));
+				op.setValue(deserializeWithNull(op.getValue(), source));
 				op.setOperationID(source.readLong());
 				op.setNumKeys(source.readShort());
 				break;
 			case SGETRES:
-				op.setRecord(selectors.get(op.getQueryID()).f0.deserialize(source));
-				op.setValue(deserializeVal(op.getValue(), source));
+				op.setRecord(deserializeWithReuse(source, op.getRecord(), selectors.get(op.getQueryID()).f0));
+				op.setValue(deserializeWithNull(op.getValue(), source));
 				break;
 			default:
 				break;
@@ -329,6 +333,15 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 		@Override
 		public void copy(DataInputView source, DataOutputView target) throws IOException {
 			throw new UnsupportedOperationException("Not implemented yet");
+		}
+
+		private static <X> X deserializeWithReuse(DataInputView source, X reuse, TypeSerializer<X> serializer)
+				throws IOException {
+			if (reuse == null) {
+				return serializer.deserialize(source);
+			} else {
+				return serializer.deserialize(reuse, source);
+			}
 		}
 
 	}

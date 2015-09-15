@@ -51,7 +51,7 @@ public class KVOperation<K, V> implements Serializable {
 	private K key;
 	private V value;
 
-	// For GET with extractor
+	// For GET with KeySelector
 	private Object record;
 	private KeySelector<Object, K> keySelector;
 
@@ -62,50 +62,19 @@ public class KVOperation<K, V> implements Serializable {
 	public KVOperation() {
 	}
 
-	// For PUT/GETRES/REMOVERES
-	public KVOperation(K key, V value, int queryID, KVOperationType type) {
+	private KVOperation(int queryID, K key, V value, Object record, KVOperationType type) {
 		this.key = key;
 		this.value = value;
 		this.type = type;
 		this.queryID = queryID;
+		this.record = record;
 	}
 
-	public KVOperation(K key, short numKeys, long operationID, int queryID) {
-		this.key = key;
-		this.type = KVOperationType.MGET;
-		this.queryID = queryID;
+	private KVOperation(int queryID, K key, V value, Object record, KVOperationType type, short numKeys,
+			long operationID) {
+		this(queryID, key, value, record, type);
 		this.numKeys = numKeys;
 		this.operationID = operationID;
-	}
-
-	public KVOperation(K key, V value, short numKeys, long operationID, int queryID) {
-		this.key = key;
-		this.value = value;
-		this.type = KVOperationType.MGETRES;
-		this.queryID = queryID;
-		this.numKeys = numKeys;
-		this.operationID = operationID;
-	}
-
-	// For GET/REMOVE
-	public KVOperation(K key, int queryID, KVOperationType type) {
-		this(key, null, queryID, type);
-		this.type = type;
-	}
-
-	// For XGET
-	public KVOperation(Object record, int queryID) {
-		this.queryID = queryID;
-		this.record = record;
-		this.type = KVOperationType.SGET;
-	}
-
-	// For XGETRES
-	public KVOperation(Object record, V value, int queryID) {
-		this.queryID = queryID;
-		this.record = record;
-		this.value = value;
-		this.type = KVOperationType.SGETRES;
 	}
 
 	public void setKey(K key) {
@@ -172,7 +141,106 @@ public class KVOperation<K, V> implements Serializable {
 		this.keySelector = keySelector;
 	}
 
-	public String toString() {
-		return type.name() + "\nKey: " + key + "\nValue: " + value + "\nNumKeys: " + numKeys;
+	public static <K, V> KVOperation<K, V> put(int id, K key, V value) {
+		return new KVOperation<>(id, key, value, null, KVOperationType.PUT);
 	}
+
+	public static <K, V> KVOperation<K, V> getRes(int id, K key, V value) {
+		return new KVOperation<>(id, key, value, null, KVOperationType.GETRES);
+	}
+
+	public static <K, V> KVOperation<K, V> removeRes(int id, K key, V value) {
+		return new KVOperation<>(id, key, value, null, KVOperationType.REMOVERES);
+	}
+
+	public static <K, V> KVOperation<K, V> get(int id, K key) {
+		return new KVOperation<>(id, key, null, null, KVOperationType.GET);
+	}
+
+	public static <K, V> KVOperation<K, V> remove(int id, K key) {
+		return new KVOperation<>(id, key, null, null, KVOperationType.REMOVE);
+	}
+
+	public static <K, V> KVOperation<K, V> multiGet(int id, K key, short numKeys, long opID) {
+		return new KVOperation<>(id, key, null, null, KVOperationType.MGET, numKeys, opID);
+	}
+
+	public static <K, V> KVOperation<K, V> multiGetRes(int id, K key, V value, short numKeys, long opID) {
+		return new KVOperation<>(id, key, value, null, KVOperationType.MGETRES, numKeys, opID);
+	}
+
+	public static <K, V> KVOperation<K, V> selectorGet(int id, Object record) {
+		return new KVOperation<>(id, null, null, record, KVOperationType.SGET);
+	}
+
+	public static <K, V> KVOperation<K, V> selectorGetRes(int id, Object record, V value) {
+		return new KVOperation<>(id, null, value, record, KVOperationType.SGETRES);
+	}
+
+	public String toString() {
+		return "(" + type.name() + ", " + key + ", " + value + ", " + record + ", " + numKeys + ", "
+				+ operationID + ")";
+	}
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((key == null) ? 0 : key.hashCode());
+		result = prime * result + ((keySelector == null) ? 0 : keySelector.hashCode());
+		result = prime * result + numKeys;
+		result = prime * result + (int) (operationID ^ (operationID >>> 32));
+		result = prime * result + queryID;
+		result = prime * result + ((record == null) ? 0 : record.hashCode());
+		result = prime * result + ((type == null) ? 0 : type.hashCode());
+		result = prime * result + ((value == null) ? 0 : value.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (obj == null) {
+			return false;
+		}
+		if (!(obj instanceof KVOperation)) {
+			return false;
+		}
+		@SuppressWarnings("rawtypes")
+		KVOperation other = (KVOperation) obj;
+		if (key == null) {
+			if (other.key != null) {
+				return false;
+			}
+		} else if (!key.equals(other.key)) {
+			return false;
+		}
+		if (numKeys != other.numKeys) {
+			return false;
+		}
+		if (operationID != other.operationID) {
+			return false;
+		}
+		if (queryID != other.queryID) {
+			return false;
+		}
+		if (record == null) {
+			if (other.record != null) {
+				return false;
+			}
+		} else if (!record.equals(other.record)) {
+			return false;
+		}
+		if (type != other.type) {
+			return false;
+		}
+		if (value == null) {
+			if (other.value != null) {
+				return false;
+			}
+		} else if (!value.equals(other.value)) {
+			return false;
+		}
+		return true;
+	}
+
 }
