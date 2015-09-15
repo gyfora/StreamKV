@@ -18,6 +18,7 @@
 package streamkv.operator;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.TreeMap;
@@ -29,6 +30,25 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
 import streamkv.types.KVOperation;
 
+/**
+ * Time aware implementation of the KVStore operator, which executes operations
+ * according to their record timestamps (which can be either ingress or custom
+ * time). The operator keeps the key-value pairs partitioned among the operator
+ * instances, where each partition is kept in a local {@link OperatorState} as a
+ * {@link HashMap}.
+ * 
+ * <p>
+ * Received operations are not eagerly executed, but are added to a
+ * {@link TreeMap} of pending operations by their timestamp. On each watermark,
+ * we execute all the operations happened before the watermark sorted by time
+ * then discard them from the pending operations.
+ * </p>
+ * 
+ * @param <K>
+ *            Type of the keys.
+ * @param <V>
+ *            Type of the values.
+ */
 public class TimestampedKVStoreOperator<K, V> extends AsyncKVStoreOperator<K, V> {
 
 	private static final long serialVersionUID = 1L;

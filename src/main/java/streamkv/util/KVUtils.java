@@ -32,9 +32,16 @@ import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.util.Collector;
 
 import streamkv.api.KV;
+import streamkv.api.KVStore;
 import streamkv.types.KVOperation;
 import streamkv.types.KVOperation.KVOperationType;
 
+/**
+ * This class contains utilities for converting input and outputs to and from
+ * {@link KVOperation}, and also the {@link KeySelector} implementations used by
+ * the {@link KVStore}.
+ * 
+ */
 public class KVUtils {
 
 	public static class KVOpKeySelector<K, V> implements KeySelector<KVOperation<K, V>, K> {

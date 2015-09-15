@@ -31,6 +31,17 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import streamkv.types.KVOperation;
 import streamkv.types.KVOperation.KVOperationType;
 
+/**
+ * Asynchronous implementation of the KVStore operator, which executes
+ * operations in arrival order. The operator keeps the key-value pairs
+ * partitioned among the operator instances, where each partition is kept in a
+ * local {@link OperatorState} as a {@link HashMap}.
+ * 
+ * @param <K>
+ *            Type of the keys.
+ * @param <V>
+ *            Type of the values.
+ */
 public class AsyncKVStoreOperator<K, V> extends AbstractStreamOperator<KVOperation<K, V>> implements
 		OneInputStreamOperator<KVOperation<K, V>, KVOperation<K, V>> {
 

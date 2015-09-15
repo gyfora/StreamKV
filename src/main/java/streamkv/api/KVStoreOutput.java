@@ -39,15 +39,15 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 @SuppressWarnings("rawtypes")
 public class KVStoreOutput<K, V> {
 
-	private Map<Integer, DataStream<KV<K, V>>> kvStreams;
-	private Map<Integer, DataStream> skvStreams;
-	private Map<Integer, DataStream<KV<K, V>[]>> mkvStreams;
+	private Map<Integer, DataStream<KV<K, V>>> keyValueStreams;
+	private Map<Integer, DataStream> customKeyValueStreams;
+	private Map<Integer, DataStream<KV<K, V>[]>> keyValueArrayStreams;
 
-	public KVStoreOutput(Map<Integer, DataStream<KV<K, V>>> kvStreams, Map<Integer, DataStream> skvStreams,
-			Map<Integer, DataStream<KV<K, V>[]>> mkvStreams) {
-		this.kvStreams = kvStreams;
-		this.skvStreams = skvStreams;
-		this.mkvStreams = mkvStreams;
+	public KVStoreOutput(Map<Integer, DataStream<KV<K, V>>> keyValueStreams, Map<Integer, DataStream> customKeyValueStreams,
+			Map<Integer, DataStream<KV<K, V>[]>> keyValueArrayStreams) {
+		this.keyValueStreams = keyValueStreams;
+		this.customKeyValueStreams = customKeyValueStreams;
+		this.keyValueArrayStreams = keyValueArrayStreams;
 	}
 
 	/**
@@ -58,8 +58,8 @@ public class KVStoreOutput<K, V> {
 	 * @return The resulting (key, value) stream.
 	 */
 	public DataStream<KV<K, V>> getKVStream(int queryID) {
-		if (kvStreams.containsKey(queryID)) {
-			return kvStreams.get(queryID);
+		if (keyValueStreams.containsKey(queryID)) {
+			return keyValueStreams.get(queryID);
 		} else {
 			throw new IllegalArgumentException("Given query ID does not correspond to a KV stream.");
 		}
@@ -73,8 +73,8 @@ public class KVStoreOutput<K, V> {
 	 */
 	@SuppressWarnings("unchecked")
 	public <X> DataStream<KV<X, V>> getCustomKVStream(int queryID) {
-		if (skvStreams.containsKey(queryID)) {
-			return skvStreams.get(queryID);
+		if (customKeyValueStreams.containsKey(queryID)) {
+			return customKeyValueStreams.get(queryID);
 		} else {
 			throw new IllegalArgumentException(
 					"Given query ID does not correspond to an extracted KV stream.");
@@ -88,8 +88,8 @@ public class KVStoreOutput<K, V> {
 	 * @return The resulting (key, value) array stream.
 	 */
 	public <X> DataStream<KV<K, V>[]> getKVArrayStream(int queryID) {
-		if (mkvStreams.containsKey(queryID)) {
-			return mkvStreams.get(queryID);
+		if (keyValueArrayStreams.containsKey(queryID)) {
+			return keyValueArrayStreams.get(queryID);
 		} else {
 			throw new IllegalArgumentException("Given query ID does not correspond to a multi-KV stream.");
 		}

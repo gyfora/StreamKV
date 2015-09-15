@@ -17,9 +17,25 @@
 
 package streamkv.types;
 
+import java.io.Serializable;
+
 import org.apache.flink.api.java.functions.KeySelector;
 
-public class KVOperation<K, V> {
+import streamkv.api.KVStore;
+
+/**
+ * Internal class wrapping all operations that can be applied on a
+ * {@link KVStore}. It is used to bring all inputs and outputs to a common
+ * representation.
+ * 
+ * @param <K>
+ *            Type of the keys.
+ * @param <V>
+ *            Type of the values.
+ */
+public class KVOperation<K, V> implements Serializable {
+
+	private static final long serialVersionUID = 4333191409809358657L;
 
 	public enum KVOperationType {
 		PUT, GET, REMOVE, MGET, SGET, GETRES, REMOVERES, MGETRES, SGETRES;
