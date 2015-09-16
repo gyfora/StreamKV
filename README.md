@@ -34,6 +34,7 @@ storeOutputs.getKVArrayStream(id2).print();
 * Get
 * GetWithKeySelector
 * MultiGet
+* MultiGetWithKeySelector
 
 Learn more about Flink at [http://flink.apache.org/](http://flink.apache.org/)
 

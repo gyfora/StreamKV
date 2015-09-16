@@ -75,7 +75,7 @@ public class KVStreamExample {
 		// Fetch the result streams for the 2 get queries using the assigned IDs
 		// and print the results
 		storeOutputs.getKVStream(id1).print();
-		storeOutputs.getKVArrayStream(id2).addSink(new PrintArray());
+		storeOutputs.<String>getKVArrayStream(id2).addSink(new PrintArray());
 
 		env.execute();
 	}

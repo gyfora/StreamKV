@@ -19,17 +19,17 @@ package streamkv.util;
 
 import java.util.Random;
 
-import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.base.IntSerializer;
+import org.apache.flink.api.common.typeutils.base.StringSerializer;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
-
-import com.google.common.collect.ImmutableMap;
 
 import streamkv.types.KVOperation;
 import streamkv.types.KVOperation.KVOperationType;
 import streamkv.types.KVOperationTypeInfo.KVOpSerializer;
+
+import com.google.common.collect.ImmutableMap;
 
 public class RandomKVOperationGenerator {
 
@@ -37,7 +37,7 @@ public class RandomKVOperationGenerator {
 	@SuppressWarnings("rawtypes")
 	private KVOpSerializer<Integer, Integer> serializer = new KVOpSerializer<>(new IntSerializer(),
 			new IntSerializer(), ImmutableMap.of(0,
-					Tuple2.<TypeInformation, KeySelector> of(BasicTypeInfo.STRING_TYPE_INFO, null)), null);
+					Tuple2.<TypeSerializer, KeySelector> of(new StringSerializer(), null)), null);
 
 	public KVOperation<Integer, Integer>[] generate(int numOperations) {
 
@@ -80,6 +80,15 @@ public class RandomKVOperationGenerator {
 		case SGETRES:
 			return KVOperation.<Integer, Integer> selectorGetRes(0, ((Integer) rnd.nextInt()).toString(),
 					rnd.nextInt());
+		case SMGET:
+			return KVOperation.<Integer, Integer> selectorMultiGet(0, ((Integer) rnd.nextInt()).toString(),
+					(short) rnd.nextInt(), rnd.nextLong());
+		case SMGETRES:
+			return KVOperation.<Integer, Integer> selectorMultiGetRes(0,
+					((Integer) rnd.nextInt()).toString(), rnd.nextInt(), (short) rnd.nextInt(),
+					rnd.nextLong());
+		default:
+			break;
 		}
 		throw new RuntimeException("Error in generator");
 	}

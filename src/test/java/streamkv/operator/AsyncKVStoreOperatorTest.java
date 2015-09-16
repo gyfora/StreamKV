@@ -60,6 +60,7 @@ public class AsyncKVStoreOperatorTest {
 				(short) 5, 1L)));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> multiGet(5, "d",
 				(short) 5, 2L)));
+		testHarness.processElement(new StreamRecord<>(selectorMultiGet(6, 1, 5, 2L, selector)));
 
 		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(1, "a", 1)));
 		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(1, "1", 2)));
@@ -74,6 +75,7 @@ public class AsyncKVStoreOperatorTest {
 		expectedOutput.add(new StreamRecord<>(KVOperation.selectorGetRes(4, 2, null)));
 		expectedOutput.add(new StreamRecord<>(KVOperation.multiGetRes(5, "a", 4, (short) 5, 1L)));
 		expectedOutput.add(new StreamRecord<>(KVOperation.multiGetRes(5, "d", null, (short) 5, 2L)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.selectorMultiGetRes(6, 1, 2, (short) 5, 2L)));
 
 		TestHarnessUtil
 				.assertOutputEquals("Output was not correct.", expectedOutput, testHarness.getOutput());
@@ -92,6 +94,14 @@ public class AsyncKVStoreOperatorTest {
 	public static <X> KVOperation<String, Integer> selectorGet(int id, X record,
 			KeySelector<Object, String> selector) {
 		KVOperation<String, Integer> op = KVOperation.<String, Integer> selectorGet(id, record);
+		op.setKeySelector(selector);
+		return op;
+	}
+
+	public static <X> KVOperation<String, Integer> selectorMultiGet(int id, X record, int nk, long opID,
+			KeySelector<Object, String> selector) {
+		KVOperation<String, Integer> op = KVOperation.<String, Integer> selectorMultiGet(id, record,
+				(short) nk, opID);
 		op.setKeySelector(selector);
 		return op;
 	}

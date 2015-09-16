@@ -38,7 +38,7 @@ public class KVOperation<K, V> implements Serializable {
 	private static final long serialVersionUID = 4333191409809358657L;
 
 	public enum KVOperationType {
-		PUT, GET, REMOVE, MGET, SGET, GETRES, REMOVERES, MGETRES, SGETRES;
+		PUT, GET, REMOVE, MGET, SGET, GETRES, REMOVERES, MGETRES, SGETRES, SMGET, SMGETRES;
 	}
 
 	public static KVOperationType[] types = KVOperationType.values();
@@ -165,8 +165,17 @@ public class KVOperation<K, V> implements Serializable {
 		return new KVOperation<>(id, key, null, null, KVOperationType.MGET, numKeys, opID);
 	}
 
+	public static <K, V> KVOperation<K, V> selectorMultiGet(int id, Object record, short numKeys, long opID) {
+		return new KVOperation<>(id, null, null, record, KVOperationType.SMGET, numKeys, opID);
+	}
+
 	public static <K, V> KVOperation<K, V> multiGetRes(int id, K key, V value, short numKeys, long opID) {
 		return new KVOperation<>(id, key, value, null, KVOperationType.MGETRES, numKeys, opID);
+	}
+
+	public static <K, V> KVOperation<K, V> selectorMultiGetRes(int id, Object record, V value, short numKeys,
+			long opID) {
+		return new KVOperation<>(id, null, value, record, KVOperationType.SMGETRES, numKeys, opID);
 	}
 
 	public static <K, V> KVOperation<K, V> selectorGet(int id, Object record) {
@@ -232,6 +241,10 @@ public class KVOperation<K, V> implements Serializable {
 			return recordEquals(other);
 		case SGETRES:
 			return valueEquals(other) && recordEquals(other);
+		case SMGET:
+			return recordEquals(other) && numKeyEquals(other) && opIDEquals(other);
+		case SMGETRES:
+			return recordEquals(other) && valueEquals(other) && numKeyEquals(other) && opIDEquals(other);
 		default:
 			return false;
 		}

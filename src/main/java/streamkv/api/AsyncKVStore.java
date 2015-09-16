@@ -17,12 +17,16 @@
 
 package streamkv.api;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.api.common.typeutils.base.GenericArraySerializer;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -37,6 +41,7 @@ import streamkv.types.KVArrayTypeInfo;
 import streamkv.types.KVOperation;
 import streamkv.types.KVOperationTypeInfo;
 import streamkv.types.KVTypeInfo;
+import streamkv.types.KVTypeInfo.KVSerializer;
 import streamkv.util.KVUtils;
 
 /**
@@ -60,6 +65,7 @@ public class AsyncKVStore<K, V> extends KVStore<K, V> {
 	private List<Tuple2<DataStream<K>, Integer>> remove = new ArrayList<>();
 	private List<Tuple3<DataStream, KeySelector, Integer>> sget = new ArrayList<>();
 	private List<Tuple2<DataStream<K[]>, Integer>> multiGet = new ArrayList<>();
+	private List<Tuple3<DataStream, KeySelector, Integer>> smget = new ArrayList<>();
 
 	private boolean finalized = false;
 	private int queryCount = 0;
@@ -107,6 +113,14 @@ public class AsyncKVStore<K, V> extends KVStore<K, V> {
 	}
 
 	@Override
+	public <X> int multiGetWithKeySelector(DataStream<X[]> stream, KeySelector<X, K> keySelector) {
+		Preconditions.checkNotNull(stream, "Input stream must not be null.");
+		checkNotFinalized();
+		smget.add(Tuple3.of((DataStream) stream, (KeySelector) keySelector, ++queryCount));
+		return queryCount;
+	}
+
+	@Override
 	@SuppressWarnings("unchecked")
 	public KVStoreOutput<K, V> getOutputs() {
 		finalized = true;
@@ -121,6 +135,7 @@ public class AsyncKVStore<K, V> extends KVStore<K, V> {
 				(TypeInformation<V>) tupleType.getTypeAt(1));
 		final KVOperationTypeInfo<K, V> kvOpType = new KVOperationTypeInfo<>(kvType.getKeyType(),
 				kvType.getValueType());
+		final ExecutionConfig config = put.get(0).f0.getExecutionEnvironment().getConfig();
 
 		// Convert all input types to KVOperation and group by the key field
 		List<DataStream<KVOperation<K, V>>> inputStreams = new ArrayList<>();
@@ -138,7 +153,7 @@ public class AsyncKVStore<K, V> extends KVStore<K, V> {
 					.groupBy(new KVUtils.KVOpKeySelector<K, V>()));
 		}
 		for (Tuple3<DataStream, KeySelector, Integer> query : sget) {
-			kvOpType.registerExtractor(query.f2, query.f0.getType(), query.f1);
+			kvOpType.registerExtractor(query.f2, query.f0.getType().createSerializer(config), query.f1);
 			final KeySelector ks = query.f1;
 			inputStreams.add(query.f0.map(new KVUtils.ToSGet<>(query.f2)).returns(kvOpType)
 					.groupBy(new KeySelector<KVOperation<K, V>, K>() {
@@ -157,6 +172,25 @@ public class AsyncKVStore<K, V> extends KVStore<K, V> {
 			inputStreams.add(query.f0.flatMap(new KVUtils.ToMGet<K, V>(query.f1)).returns(kvOpType)
 					.groupBy(new KVUtils.KVOpKeySelector<K, V>()));
 		}
+		for (Tuple3<DataStream, KeySelector, Integer> query : smget) {
+
+			kvOpType.registerExtractor(query.f2,
+					getComponentSerializer(query.f0.getType().createSerializer(config)), query.f1);
+			final KeySelector ks = query.f1;
+			inputStreams.add(query.f0.flatMap(new KVUtils.ToSMGet<K, V>(query.f2)).returns(kvOpType)
+					.groupBy(new KeySelector<KVOperation<K, V>, K>() {
+
+						private static final long serialVersionUID = 8123229428587687470L;
+						KeySelector selector = ks;
+
+						@Override
+						public K getKey(KVOperation<K, V> value) throws Exception {
+							return (K) selector.getKey(value.getRecord());
+						}
+
+					}));
+
+		}
 
 		// Union all the input streams
 		DataStream<KVOperation<K, V>> input = inputStreams.get(0);
@@ -172,7 +206,7 @@ public class AsyncKVStore<K, V> extends KVStore<K, V> {
 
 		// Create a map for each output stream type
 		Map<Integer, DataStream> keyValueStreams = new HashMap<>();
-		Map<Integer, DataStream<Tuple2<K, V>[]>> keyValueArrayStreams = new HashMap<>();
+		Map<Integer, DataStream> keyValueArrayStreams = new HashMap<>();
 
 		// For each query, we select the query ID from the SplitDataStream and
 		// convert the results back from KVOperation to the proper output type
@@ -197,14 +231,40 @@ public class AsyncKVStore<K, V> extends KVStore<K, V> {
 		}
 
 		for (Tuple2<DataStream<K[]>, Integer> query : multiGet) {
-			DataStream<Tuple2<K, V>[]> projected = split.select(query.f1.toString())
+			DataStream<Tuple2[]> projected = split.select(query.f1.toString())
 					.groupBy(new KVUtils.OperationIDSelector<K, V>()).flatMap(new KVUtils.MGetMerge<K, V>())
-					.returns(new KVArrayTypeInfo<>(kvType));
+					.returns((TypeInformation<Tuple2[]>) (TypeInformation) new KVArrayTypeInfo<>(kvType));
 			keyValueArrayStreams.put(query.f1, projected);
+		}
+
+		for (Tuple3<DataStream, KeySelector, Integer> query : smget) {
+			DataStream<Tuple2[]> projected = split
+					.select(query.f2.toString())
+					.groupBy(new KVUtils.OperationIDSelector<K, V>())
+					.flatMap(new KVUtils.MGetMerge<K, V>())
+					.returns(
+							(TypeInformation<Tuple2[]>) (TypeInformation) new KVArrayTypeInfo<>(
+									new KVSerializer<>(getComponentSerializer(query.f0.getType()
+											.createSerializer(config)), kvType.getValueType()
+											.createSerializer(config))));
+			keyValueArrayStreams.put(query.f2, projected);
 		}
 
 		return new KVStoreOutput<>(keyValueStreams, keyValueArrayStreams);
 
+	}
+
+	private TypeSerializer getComponentSerializer(TypeSerializer arraySerializer) {
+		try {
+			GenericArraySerializer gs = (GenericArraySerializer) arraySerializer;
+
+			Field field = gs.getClass().getDeclaredField("componentSerializer");
+			field.setAccessible(true);
+			TypeSerializer componentSerializer = (TypeSerializer) field.get(gs);
+			return componentSerializer;
+		} catch (Exception e) {
+			throw new RuntimeException("Could not determine component type.", e);
+		}
 	}
 
 	protected void checkNotFinalized() {

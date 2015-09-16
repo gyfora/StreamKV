@@ -79,8 +79,14 @@ public class AsyncKVStoreOperator<K, V> extends AbstractStreamOperator<KVOperati
 		case SGET:
 			Object record = op.getRecord();
 			KeySelector<Object, K> selector = op.getKeySelector();
-			output.collect(reuse.replace(KVOperation.<K,V>selectorGetRes(op.getQueryID(),
-					record, store.get(selector.getKey(record)))));
+			output.collect(reuse.replace(KVOperation.<K, V> selectorGetRes(op.getQueryID(), record,
+					store.get(selector.getKey(record)))));
+			break;
+		case SMGET:
+			Object rec = op.getRecord();
+			KeySelector<Object, K> s = op.getKeySelector();
+			output.collect(reuse.replace(KVOperation.<K, V> selectorMultiGetRes(op.getQueryID(), rec,
+					store.get(s.getKey(rec)), op.getNumKeys(), op.getOperationID())));
 			break;
 		default:
 			throw new UnsupportedOperationException("Not implemented yet");

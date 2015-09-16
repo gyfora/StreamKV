@@ -17,6 +17,12 @@
 
 package streamkv.types;
 
+import static streamkv.types.KVTypeInfo.copyWithReuse;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
@@ -24,13 +30,8 @@ import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
-import streamkv.types.KVOperation.KVOperationType;
-import static streamkv.types.KVTypeInfo.copyWithReuse;
 
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Map.Entry;
+import streamkv.types.KVOperation.KVOperationType;
 
 public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>> {
 
@@ -39,7 +40,7 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 	public TypeInformation<K> keyType;
 	public TypeInformation<V> valueType;
 	@SuppressWarnings("rawtypes")
-	Map<Integer, Tuple2<TypeInformation, KeySelector>> selectors = new HashMap<>();
+	Map<Integer, Tuple2<TypeSerializer, KeySelector>> selectors = new HashMap<>();
 
 	public KVOperationTypeInfo(TypeInformation<K> keyType, TypeInformation<V> valueType) {
 		this.keyType = keyType;
@@ -47,7 +48,7 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 	}
 
 	@SuppressWarnings("rawtypes")
-	public void registerExtractor(int qID, TypeInformation inType, KeySelector key) {
+	public void registerExtractor(int qID, TypeSerializer inType, KeySelector key) {
 		selectors.put(qID, Tuple2.of(inType, key));
 	}
 
@@ -112,16 +113,10 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 		private Map<Integer, Tuple2<TypeSerializer, KeySelector>> selectors;
 
 		public KVOpSerializer(TypeSerializer<K> keySerializer, TypeSerializer<V> valueSerializer,
-				Map<Integer, Tuple2<TypeInformation, KeySelector>> selectorInfo, ExecutionConfig config) {
+				Map<Integer, Tuple2<TypeSerializer, KeySelector>> selectors, ExecutionConfig config) {
 			this.keySerializer = keySerializer;
 			this.valueSerializer = valueSerializer;
-			if (selectorInfo != null) {
-				selectors = new HashMap<>();
-				for (Entry<Integer, Tuple2<TypeInformation, KeySelector>> entry : selectorInfo.entrySet()) {
-					selectors.put(entry.getKey(),
-							Tuple2.of(entry.getValue().f0.createSerializer(config), entry.getValue().f1));
-				}
-			}
+			this.selectors = selectors;
 		}
 
 		@Override
@@ -185,6 +180,21 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 						selectors.get(from.getQueryID()).f0));
 				to.setValue(copyWithReuse(from.getValue(), to.getValue(), valueSerializer));
 				break;
+			case SMGET:
+				to.setKeySelector(from.getKeySelector());
+				to.setRecord(copyWithReuse(from.getRecord(), to.getRecord(),
+						selectors.get(from.getQueryID()).f0));
+				to.setOperationID(from.getOperationID());
+				to.setNumKeys(from.getNumKeys());
+				break;
+			case SMGETRES:
+				to.setKeySelector(from.getKeySelector());
+				to.setRecord(copyWithReuse(from.getRecord(), to.getRecord(),
+						selectors.get(from.getQueryID()).f0));
+				to.setValue(copyWithReuse(from.getValue(), to.getValue(), valueSerializer));
+				to.setOperationID(from.getOperationID());
+				to.setNumKeys(from.getNumKeys());
+				break;
 			default:
 				throw new UnsupportedOperationException();
 			}
@@ -230,31 +240,44 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 			case GETRES:
 				target.writeShort(5);
 				keySerializer.serialize(op.getKey(), target);
-				serializeWithNull(op, target);
+				serializeValWithNull(op, target);
 				break;
 			case REMOVERES:
 				target.writeShort(6);
 				keySerializer.serialize(op.getKey(), target);
-				serializeWithNull(op, target);
+				serializeValWithNull(op, target);
 				break;
 			case MGETRES:
 				target.writeShort(7);
 				keySerializer.serialize(op.getKey(), target);
-				serializeWithNull(op, target);
+				serializeValWithNull(op, target);
 				target.writeLong(op.getOperationID());
 				target.writeShort(op.getNumKeys());
 				break;
 			case SGETRES:
 				target.writeShort(8);
 				selectors.get(op.getQueryID()).f0.serialize(op.getRecord(), target);
-				serializeWithNull(op, target);
+				serializeValWithNull(op, target);
+				break;
+			case SMGET:
+				target.writeShort(9);
+				selectors.get(op.getQueryID()).f0.serialize(op.getRecord(), target);
+				target.writeLong(op.getOperationID());
+				target.writeShort(op.getNumKeys());
+				break;
+			case SMGETRES:
+				target.writeShort(10);
+				selectors.get(op.getQueryID()).f0.serialize(op.getRecord(), target);
+				serializeValWithNull(op, target);
+				target.writeLong(op.getOperationID());
+				target.writeShort(op.getNumKeys());
 				break;
 			default:
 				throw new RuntimeException("Invalid operation: " + op.getType().name());
 			}
 		}
 
-		private void serializeWithNull(KVOperation<K, V> op, DataOutputView target) throws IOException {
+		private void serializeValWithNull(KVOperation<K, V> op, DataOutputView target) throws IOException {
 			boolean hasVal = op.getValue() != null;
 			target.writeBoolean(hasVal);
 			if (hasVal) {
@@ -262,7 +285,7 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 			}
 		}
 
-		private V deserializeWithNull(V reuse, DataInputView source) throws IOException {
+		private V deserializeValWithNull(V reuse, DataInputView source) throws IOException {
 			if (source.readBoolean()) {
 				if (reuse == null) {
 					return valueSerializer.deserialize(source);
@@ -296,7 +319,7 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 			case GETRES:
 			case REMOVERES:
 				op.setKey(deserializeWithReuse(source, op.getKey(), keySerializer));
-				op.setValue(deserializeWithNull(op.getValue(), source));
+				op.setValue(deserializeValWithNull(op.getValue(), source));
 				break;
 			case GET:
 				op.setKey(deserializeWithReuse(source, op.getKey(), keySerializer));
@@ -316,13 +339,26 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 				break;
 			case MGETRES:
 				op.setKey(deserializeWithReuse(source, op.getKey(), keySerializer));
-				op.setValue(deserializeWithNull(op.getValue(), source));
+				op.setValue(deserializeValWithNull(op.getValue(), source));
 				op.setOperationID(source.readLong());
 				op.setNumKeys(source.readShort());
 				break;
 			case SGETRES:
 				op.setRecord(deserializeWithReuse(source, op.getRecord(), selectors.get(op.getQueryID()).f0));
-				op.setValue(deserializeWithNull(op.getValue(), source));
+				op.setValue(deserializeValWithNull(op.getValue(), source));
+				break;
+			case SMGET:
+				Tuple2<TypeSerializer, KeySelector> s = selectors.get(op.getQueryID());
+				op.setKeySelector(s.f1);
+				op.setRecord(deserializeWithReuse(source, op.getRecord(), s.f0));
+				op.setOperationID(source.readLong());
+				op.setNumKeys(source.readShort());
+				break;
+			case SMGETRES:
+				op.setRecord(deserializeWithReuse(source, op.getRecord(), selectors.get(op.getQueryID()).f0));
+				op.setValue(deserializeValWithNull(op.getValue(), source));
+				op.setOperationID(source.readLong());
+				op.setNumKeys(source.readShort());
 				break;
 			default:
 				break;

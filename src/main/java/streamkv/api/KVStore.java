@@ -102,6 +102,20 @@ public abstract class KVStore<K, V> {
 	public abstract int multiGet(DataStream<K[]> stream);
 
 	/**
+	 * Get multiple elements from the store at the same time by specifying a
+	 * stream of object arrays and a {@link KeySelector} for extracting the keys
+	 * from the object..
+	 * 
+	 * @param stream
+	 *            The stream of object arrays.
+	 * @param keySelector
+	 *            The {@link KeySelector} used to extract the key for each
+	 *            element.
+	 * @return The id of the resulting (record, value) array stream.
+	 */
+	public abstract <X> int multiGetWithKeySelector(DataStream<X[]> stream, KeySelector<X, K> keySelector);
+
+	/**
 	 * Finalize the operations applied on this {@link KVStore} and get the
 	 * resulting streams. Each result stream can be retrieved from the returned
 	 * {@link KVStoreOutput} by calling the respective methods.

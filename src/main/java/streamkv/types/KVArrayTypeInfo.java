@@ -21,16 +21,22 @@ import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.base.GenericArraySerializer;
-
 import org.apache.flink.api.java.tuple.Tuple2;
+
+import streamkv.types.KVTypeInfo.KVSerializer;
 
 public class KVArrayTypeInfo<K, V> extends TypeInformation<Tuple2<K, V>[]> {
 
 	private static final long serialVersionUID = 1L;
 	private KVTypeInfo<K, V> kvType;
+	private KVSerializer<K, V> kvSerializer = null;
 
 	public KVArrayTypeInfo(KVTypeInfo<K, V> kvType) {
 		this.kvType = kvType;
+	}
+
+	public KVArrayTypeInfo(KVSerializer<K, V> kvSerializer) {
+		this.kvSerializer = kvSerializer;
 	}
 
 	@Override
@@ -65,7 +71,14 @@ public class KVArrayTypeInfo<K, V> extends TypeInformation<Tuple2<K, V>[]> {
 
 	@Override
 	public TypeSerializer<Tuple2<K, V>[]> createSerializer(ExecutionConfig config) {
-		return new GenericArraySerializer<>(kvType.getTypeClass(), kvType.createSerializer(config));
+		if (kvSerializer == null) {
+			return new GenericArraySerializer<>(kvType.getTypeClass(), kvType.createSerializer(config));
+		} else {
+			Tuple2<K, V> instance = new Tuple2<>();
+			@SuppressWarnings("unchecked")
+			Class<Tuple2<K, V>> c = (Class<Tuple2<K, V>>) instance.getClass();
+			return new GenericArraySerializer<>(c, kvSerializer);
+		}
 	}
 
 }

@@ -35,11 +35,11 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.operators.StreamMap;
 import org.apache.flink.util.Collector;
 
-import com.google.common.base.Preconditions;
-
 import streamkv.api.KVStore;
 import streamkv.types.KVOperation;
 import streamkv.types.KVOperation.KVOperationType;
+
+import com.google.common.base.Preconditions;
 
 /**
  * This class contains utilities for converting input and outputs to and from
@@ -228,18 +228,50 @@ public class KVUtils {
 		}
 	}
 
-	public static class MGetMerge<K, V> extends RichFlatMapFunction<KVOperation<K, V>, Tuple2<K, V>[]> {
+	public static class ToSMGet<K, V> extends RichFlatMapFunction<Object, KVOperation<K, V>> {
 
 		private static final long serialVersionUID = 1L;
 
-		@SuppressWarnings("rawtypes")
+		private int index;
+		transient private KVOperation<K, V> reuse;
+		private Random rnd;
+
+		public ToSMGet(int index) {
+			this.index = index;
+		}
+
+		@Override
+		public void flatMap(Object in, Collector<KVOperation<K, V>> out) throws Exception {
+			Object[] keys = (Object[]) in;
+			reuse.setNumKeys((short) keys.length);
+			reuse.setOperationID(rnd.nextLong());
+			for (Object key : keys) {
+				Preconditions.checkNotNull(key, "Key must not be null");
+				reuse.setRecord(key);
+				out.collect(reuse);
+			}
+		}
+
+		@Override
+		public void open(Configuration conf) {
+			reuse = new KVOperation<>();
+			reuse.setQueryID(index);
+			reuse.setType(KVOperationType.SMGET);
+			rnd = new Random();
+		}
+	}
+
+	@SuppressWarnings("rawtypes")
+	public static class MGetMerge<K, V> extends RichFlatMapFunction<KVOperation<K, V>, Tuple2[]> {
+
+		private static final long serialVersionUID = 1L;
+
 		private OperatorState<Tuple2<Integer, Tuple2[]>> merged;
 
-		@SuppressWarnings("unchecked")
 		@Override
-		public void flatMap(KVOperation<K, V> next, Collector<Tuple2<K, V>[]> out) throws Exception {
-			@SuppressWarnings("rawtypes")
+		public void flatMap(KVOperation<K, V> next, Collector<Tuple2[]> out) throws Exception {
 			Tuple2<Integer, Tuple2[]> partial = merged.value();
+			Object key = next.getType() == KVOperationType.MGETRES ? next.getKey() : next.getRecord();
 			short numKeys = next.getNumKeys();
 
 			if (numKeys == 0) {
@@ -249,10 +281,11 @@ public class KVUtils {
 			if (partial.f1 == null) {
 				partial.f0 = (int) numKeys - 1;
 				partial.f1 = new Tuple2[numKeys];
-				partial.f1[0] = Tuple2.of(next.getKey(), next.getValue());
+				partial.f1[0] = Tuple2.of(key, next.getValue());
+
 			} else {
 				partial.f0 -= 1;
-				partial.f1[numKeys - partial.f0 - 1] = Tuple2.of(next.getKey(), next.getValue());
+				partial.f1[numKeys - partial.f0 - 1] = Tuple2.of(key, next.getValue());
 			}
 
 			if (partial.f0 == 0) {
@@ -264,7 +297,6 @@ public class KVUtils {
 
 		}
 
-		@SuppressWarnings("rawtypes")
 		@Override
 		public void open(Configuration conf) throws IOException {
 			merged = getRuntimeContext().getOperatorState("merged",

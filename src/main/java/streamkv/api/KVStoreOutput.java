@@ -41,10 +41,10 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 public class KVStoreOutput<K, V> {
 
 	private Map<Integer, DataStream> customKeyValueStreams;
-	private Map<Integer, DataStream<Tuple2<K, V>[]>> keyValueArrayStreams;
+	private Map<Integer, DataStream> keyValueArrayStreams;
 
 	public KVStoreOutput(Map<Integer, DataStream> customKeyValueStreams,
-			Map<Integer, DataStream<Tuple2<K, V>[]>> keyValueArrayStreams) {
+			Map<Integer, DataStream> keyValueArrayStreams) {
 		this.customKeyValueStreams = customKeyValueStreams;
 		this.keyValueArrayStreams = keyValueArrayStreams;
 	}
@@ -74,7 +74,8 @@ public class KVStoreOutput<K, V> {
 	 * @param queryID
 	 * @return The resulting (key, value) array stream.
 	 */
-	public <X> DataStream<Tuple2<K, V>[]> getKVArrayStream(int queryID) {
+	@SuppressWarnings("unchecked")
+	public <X> DataStream<Tuple2<X, V>[]> getKVArrayStream(int queryID) {
 		if (keyValueArrayStreams.containsKey(queryID)) {
 			return keyValueArrayStreams.get(queryID);
 		} else {

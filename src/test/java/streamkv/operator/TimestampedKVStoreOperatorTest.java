@@ -19,6 +19,7 @@ package streamkv.operator;
 
 import static streamkv.operator.AsyncKVStoreOperatorTest.selector;
 import static streamkv.operator.AsyncKVStoreOperatorTest.selectorGet;
+import static streamkv.operator.AsyncKVStoreOperatorTest.selectorMultiGet;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -46,6 +47,8 @@ public class TimestampedKVStoreOperatorTest {
 
 		testHarness.processElement(new StreamRecord<>(KVOperation.put(0, "a", 1), 1));
 		testHarness.processElement(new StreamRecord<>(KVOperation.put(0, "a", 4), 6));
+		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> remove(3, "c"), 11));
+		testHarness.processElement(new StreamRecord<>(selectorMultiGet(6, 1, 5, 2L, selector), 18));
 		testHarness.processElement(new StreamRecord<>(KVOperation.put(0, "1", 2), 2));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(1, "1"), 4));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(2, "c"), 5));
@@ -53,9 +56,9 @@ public class TimestampedKVStoreOperatorTest {
 
 		testHarness.processWatermark(new Watermark(6));
 
+		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> remove(3, "d"), 13));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(2, "1"), 9));
 		testHarness.processElement(new StreamRecord<>(KVOperation.put(0, "c", 3), 7));
-		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> remove(3, "c"), 11));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(2, "c"), 10));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(1, "a"), 8));
 
@@ -63,15 +66,13 @@ public class TimestampedKVStoreOperatorTest {
 
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> multiGet(5, "a",
 				(short) 5, 1L), 16));
-
 		testHarness.processElement(new StreamRecord<>(selectorGet(4, 1, selector), 14));
 		testHarness.processElement(new StreamRecord<>(selectorGet(4, 2, selector), 15));
-		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> remove(3, "d"), 13));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> multiGet(5, "d",
 				(short) 5, 2L), 17));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(2, "c"), 12));
 
-		testHarness.processWatermark(new Watermark(17));
+		testHarness.processWatermark(new Watermark(18));
 
 		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(1, "a", 1), 3));
 		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(1, "1", 2), 4));
@@ -86,6 +87,7 @@ public class TimestampedKVStoreOperatorTest {
 		expectedOutput.add(new StreamRecord<>(KVOperation.selectorGetRes(4, 2, null), 15));
 		expectedOutput.add(new StreamRecord<>(KVOperation.multiGetRes(5, "a", 4, (short) 5, 1L), 16));
 		expectedOutput.add(new StreamRecord<>(KVOperation.multiGetRes(5, "d", null, (short) 5, 2L), 17));
+		expectedOutput.add(new StreamRecord<>(KVOperation.selectorMultiGetRes(6, 1, 2, (short) 5, 2L), 18));
 
 		TestHarnessUtil
 				.assertOutputEquals("Output was not correct.", expectedOutput, testHarness.getOutput());
