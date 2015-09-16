@@ -261,7 +261,7 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 				valueSerializer.serialize(op.getValue(), target);
 			}
 		}
-		
+
 		private V deserializeWithNull(V reuse, DataInputView source) throws IOException {
 			if (source.readBoolean()) {
 				if (reuse == null) {

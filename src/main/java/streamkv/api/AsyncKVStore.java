@@ -27,6 +27,7 @@ import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.typeutils.TupleTypeInfo;
+import org.apache.flink.shaded.com.google.common.base.Preconditions;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SplitDataStream;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
@@ -50,7 +51,7 @@ import streamkv.util.KVUtils;
  *            Type of the values.
  */
 @SuppressWarnings("rawtypes")
-public class AsyncKVStore<K, V> implements KVStore<K, V> {
+public class AsyncKVStore<K, V> extends KVStore<K, V> {
 
 	// Lists of input streams and query ids for the different operations, the
 	// transformation is only applied when the user calls getOutputs()
@@ -63,14 +64,19 @@ public class AsyncKVStore<K, V> implements KVStore<K, V> {
 	private boolean finalized = false;
 	private int queryCount = 0;
 
+	protected AsyncKVStore() {
+	}
+
 	@Override
 	public void put(DataStream<Tuple2<K, V>> stream) {
+		Preconditions.checkNotNull(stream, "Input stream must not be null.");
 		checkNotFinalized();
 		put.add(Tuple2.of(stream, ++queryCount));
 	}
 
 	@Override
 	public int get(DataStream<K> stream) {
+		Preconditions.checkNotNull(stream, "Input stream must not be null.");
 		checkNotFinalized();
 		get.add(Tuple2.of(stream, ++queryCount));
 		return queryCount;
@@ -78,6 +84,7 @@ public class AsyncKVStore<K, V> implements KVStore<K, V> {
 
 	@Override
 	public int remove(DataStream<K> stream) {
+		Preconditions.checkNotNull(stream, "Input stream must not be null.");
 		checkNotFinalized();
 		remove.add(Tuple2.of(stream, ++queryCount));
 		return queryCount;
@@ -85,6 +92,7 @@ public class AsyncKVStore<K, V> implements KVStore<K, V> {
 
 	@Override
 	public <X> int getWithKeySelector(DataStream<X> stream, KeySelector<X, K> keySelector) {
+		Preconditions.checkNotNull(stream, "Input stream must not be null.");
 		checkNotFinalized();
 		sget.add(Tuple3.of((DataStream) stream, (KeySelector) keySelector, ++queryCount));
 		return queryCount;
@@ -92,6 +100,7 @@ public class AsyncKVStore<K, V> implements KVStore<K, V> {
 
 	@Override
 	public int multiGet(DataStream<K[]> stream) {
+		Preconditions.checkNotNull(stream, "Input stream must not be null.");
 		checkNotFinalized();
 		multiGet.add(Tuple2.of(stream, ++queryCount));
 		return queryCount;
@@ -162,8 +171,7 @@ public class AsyncKVStore<K, V> implements KVStore<K, V> {
 				op).split(new KVUtils.IDOutputSelector<K, V>());
 
 		// Create a map for each output stream type
-		Map<Integer, DataStream<Tuple2<K, V>>> keyValueStreams = new HashMap<>();
-		Map<Integer, DataStream> customKeyValueStreams = new HashMap<>();
+		Map<Integer, DataStream> keyValueStreams = new HashMap<>();
 		Map<Integer, DataStream<Tuple2<K, V>[]>> keyValueArrayStreams = new HashMap<>();
 
 		// For each query, we select the query ID from the SplitDataStream and
@@ -185,7 +193,7 @@ public class AsyncKVStore<K, V> implements KVStore<K, V> {
 		for (Tuple3<DataStream, KeySelector, Integer> query : sget) {
 			DataStream projected = KVUtils.nonCopyingMap(split.select(query.f2.toString()), new KVTypeInfo(
 					query.f0.getType(), kvOpType.valueType), new KVUtils.ToSKV<K, V>());
-			customKeyValueStreams.put(query.f2, projected);
+			keyValueStreams.put(query.f2, projected);
 		}
 
 		for (Tuple2<DataStream<K[]>, Integer> query : multiGet) {
@@ -195,7 +203,7 @@ public class AsyncKVStore<K, V> implements KVStore<K, V> {
 			keyValueArrayStreams.put(query.f1, projected);
 		}
 
-		return new KVStoreOutput<>(keyValueStreams, customKeyValueStreams, keyValueArrayStreams);
+		return new KVStoreOutput<>(keyValueStreams, keyValueArrayStreams);
 
 	}
 

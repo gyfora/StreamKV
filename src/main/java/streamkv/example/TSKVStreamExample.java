@@ -27,8 +27,8 @@ import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
 
 import streamkv.api.KVStore;
+import streamkv.api.KVStore.OperationOrdering;
 import streamkv.api.KVStoreOutput;
-import streamkv.api.TimestampedKVStore;
 
 public class TSKVStreamExample {
 
@@ -38,7 +38,7 @@ public class TSKVStreamExample {
 
 		env.getConfig().enableTimestamps();
 		// Create a new Key-Value store
-		KVStore<String, Integer> store = new TimestampedKVStore<>();
+		KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.TIME);
 
 		DataStream<Tuple2<String, Integer>> put1 = env.addSource(new PutSource(
 				Tuple3.of("a", 1, 1L),
@@ -79,7 +79,7 @@ public class TSKVStreamExample {
 		});
 
 		KVStoreOutput<String, Integer> storeOutputs = store.getOutputs();
-		storeOutputs.getCustomKVStream(id1).print();
+		storeOutputs.getKVStream(id1).print();
 
 		env.execute();
 	}

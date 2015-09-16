@@ -27,7 +27,7 @@ import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
 
 import streamkv.api.KVStore;
-import streamkv.api.TimestampedKVStore;
+import streamkv.api.KVStore.OperationOrdering;
 
 public class TimestampedKVLocalBenchmark extends LocalBenchmark {
 
@@ -63,7 +63,7 @@ public class TimestampedKVLocalBenchmark extends LocalBenchmark {
 
 	@Override
 	protected KVStore<Integer, Integer> getStore() {
-		return new TimestampedKVStore<>();
+		return KVStore.withOrdering(OperationOrdering.TIME);
 	}
 
 	@Override

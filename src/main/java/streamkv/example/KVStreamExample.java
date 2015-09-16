@@ -26,8 +26,8 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.util.Collector;
 
-import streamkv.api.AsyncKVStore;
 import streamkv.api.KVStore;
+import streamkv.api.KVStore.OperationOrdering;
 import streamkv.api.KVStoreOutput;
 
 /**
@@ -56,7 +56,7 @@ public class KVStreamExample {
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
 		// Create a new KV store
-		KVStore<String, Integer> store = new AsyncKVStore<>();
+		KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.PARTIAL);
 
 		// Create query streams
 		DataStream<Tuple2<String, Integer>> putStream = env.socketTextStream("localhost", 9999).flatMap(

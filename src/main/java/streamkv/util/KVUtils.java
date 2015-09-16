@@ -35,6 +35,8 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.operators.StreamMap;
 import org.apache.flink.util.Collector;
 
+import com.google.common.base.Preconditions;
+
 import streamkv.api.KVStore;
 import streamkv.types.KVOperation;
 import streamkv.types.KVOperation.KVOperationType;
@@ -69,6 +71,7 @@ public class KVUtils {
 
 		@Override
 		public KVOperation<K, V> map(Tuple2<K, V> next) throws Exception {
+			Preconditions.checkNotNull(next.f0, "Key must not be null");
 			reuse.setKey(next.f0);
 			reuse.setValue(next.f1);
 			return reuse;
@@ -93,6 +96,7 @@ public class KVUtils {
 
 		@Override
 		public KVOperation<K, V> map(K key) throws Exception {
+			Preconditions.checkNotNull(key, "Key must not be null");
 			reuse.setKey(key);
 			return reuse;
 		}
@@ -116,6 +120,7 @@ public class KVUtils {
 
 		@Override
 		public KVOperation<K, V> map(K key) throws Exception {
+			Preconditions.checkNotNull(key, "Key must not be null");
 			reuse.setKey(key);
 			return reuse;
 		}
@@ -140,6 +145,8 @@ public class KVUtils {
 
 		@Override
 		public KVOperation<K, V> map(Object record) throws Exception {
+			Preconditions.checkNotNull(record, "Key must not be null");
+
 			reuse.setRecord(record);
 			return reuse;
 		}
@@ -205,6 +212,8 @@ public class KVUtils {
 			reuse.setNumKeys((short) keys.length);
 			reuse.setOperationID(rnd.nextLong());
 			for (K key : keys) {
+				Preconditions.checkNotNull(key, "Key must not be null");
+
 				reuse.setKey(key);
 				out.collect(reuse);
 			}
@@ -279,7 +288,7 @@ public class KVUtils {
 
 		@Override
 		public Iterable<String> select(KVOperation<K, V> value) {
-			selected.set(0, "" + value.getQueryID());
+			selected.set(0, ((Integer) value.getQueryID()).toString());
 			return selected;
 		}
 	}

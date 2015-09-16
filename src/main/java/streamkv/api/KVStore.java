@@ -17,13 +17,14 @@
 
 package streamkv.api;
 
+import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.IterativeDataStream;
 
 /**
- * Basic streaming key-value store interface. The user can use Flink
+ * Basic streaming key-value store abstraction. The user can use Flink
  * {@link DataStream}s to apply operations on the store, such as {@link #put} or
  * {@link #get}. Operations that generate output return a query id that can be
  * used to retrieve the result streams from the {@link KVStoreOutput} instance
@@ -42,7 +43,14 @@ import org.apache.flink.streaming.api.datastream.IterativeDataStream;
  * @param <V>
  *            Type of the values.
  */
-public interface KVStore<K, V> {
+public abstract class KVStore<K, V> {
+
+	public enum OperationOrdering {
+		TIME, PARTIAL
+	}
+
+	protected KVStore() {
+	}
 
 	/**
 	 * Put the elements in the given stream into the key-value store.
@@ -50,7 +58,7 @@ public interface KVStore<K, V> {
 	 * @param stream
 	 *            Stream of {@link Tuple2}s representing the (K,V) pairs.
 	 */
-	void put(DataStream<Tuple2<K, V>> stream);
+	public abstract void put(DataStream<Tuple2<K, V>> stream);
 
 	/**
 	 * Get elements from the store by specifying a stream of keys to retrieve.
@@ -59,7 +67,7 @@ public interface KVStore<K, V> {
 	 *            The stream of keys to get.
 	 * @return The id of the resulting (key, value) stream.
 	 */
-	int get(DataStream<K> stream);
+	public abstract int get(DataStream<K> stream);
 
 	/**
 	 * Remove elements from the store by specifying a stream of keys to remove.
@@ -68,7 +76,7 @@ public interface KVStore<K, V> {
 	 *            The stream of keys to remove.
 	 * @return The id of the resulting (key, value) stream.
 	 */
-	int remove(DataStream<K> stream);
+	public abstract int remove(DataStream<K> stream);
 
 	/**
 	 * Get elements from the store by specifying a stream of records and a
@@ -81,7 +89,7 @@ public interface KVStore<K, V> {
 	 *            element.
 	 * @return The id of the resulting (record, value) stream.
 	 */
-	<X> int getWithKeySelector(DataStream<X> stream, KeySelector<X, K> keySelector);
+	public abstract <X> int getWithKeySelector(DataStream<X> stream, KeySelector<X, K> keySelector);
 
 	/**
 	 * Get multiple elements from the store at the same time by specifying a
@@ -91,7 +99,7 @@ public interface KVStore<K, V> {
 	 *            The stream of key arrays to get.
 	 * @return The id of the resulting (key, value) array stream.
 	 */
-	int multiGet(DataStream<K[]> stream);
+	public abstract int multiGet(DataStream<K[]> stream);
 
 	/**
 	 * Finalize the operations applied on this {@link KVStore} and get the
@@ -106,6 +114,44 @@ public interface KVStore<K, V> {
 	 * 
 	 * @return The {@link KVStoreOutput} for this store.
 	 */
-	KVStoreOutput<K, V> getOutputs();
+	public abstract KVStoreOutput<K, V> getOutputs();
 
+	/**
+	 * Creates a new {@link KVStore} with the given {@link OperationOrdering}
+	 * semantics. <br>
+	 * <br>
+	 * Currently there are 2 supported ordering semantics:
+	 * <ul>
+	 * <li><b>PARTIAL</b> : All operations are executed in arrival order
+	 * (governed by the standard Flink partial ordering guarantees). While this
+	 * implementation provides maximal performance it does not provide any
+	 * deterministic processing guarantee.</li>
+	 * <li><b>TIME</b> : All operations are executed in time order. Time can be
+	 * ingress time by default or custom event timestamps and watermarks must be
+	 * provided by the source implementations. There is no ordering guarantee
+	 * among elements with the same timestamps.
+	 * 
+	 * <p>
+	 * This implementation provides deterministic processing guarantees given
+	 * that each record has a unique timestamp.
+	 * </p>
+	 * 
+	 * <p>
+	 * Record timestamps need to be enabled by calling
+	 * {@link ExecutionConfig#enableTimestamps()}.
+	 * </p>
+	 * </li>
+	 * </ul>
+	 * 
+	 * @param ordering
+	 *            {@link OperationOrdering} semantics for the {@link KVStore}.
+	 * @return A new {@link KVStore} instance.
+	 */
+	public static <K, V> KVStore<K, V> withOrdering(OperationOrdering ordering) {
+		if (ordering == OperationOrdering.TIME) {
+			return new TimestampedKVStore<>();
+		} else {
+			return new AsyncKVStore<>();
+		}
+	}
 }

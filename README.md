@@ -8,7 +8,7 @@ StreamKV also supports timestamped operations, which will be executed in an orde
 
 ```java
 // Create a new KV store
-KVStore<String, Integer> store = new AsyncKVStore<>();
+KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.PARTIAL);
 
 // Create query streams
 DataStream<Tuple2<String, Integer>> putStream = ...

@@ -23,8 +23,8 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
 
-import streamkv.api.AsyncKVStore;
 import streamkv.api.KVStore;
+import streamkv.api.KVStore.OperationOrdering;
 
 public class AsyncKVLocalBenchmark extends LocalBenchmark {
 
@@ -59,7 +59,7 @@ public class AsyncKVLocalBenchmark extends LocalBenchmark {
 
 	@Override
 	protected KVStore<Integer, Integer> getStore() {
-		return new AsyncKVStore<>();
+		return KVStore.withOrdering(OperationOrdering.PARTIAL);
 	}
 
 	public static class PutGenerator extends RichParallelSourceFunction<Tuple2<Integer, Integer>> {

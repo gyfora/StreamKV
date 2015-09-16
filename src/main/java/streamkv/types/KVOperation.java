@@ -178,8 +178,8 @@ public class KVOperation<K, V> implements Serializable {
 	}
 
 	public String toString() {
-		return "(" + type.name() + ", " + key + ", " + value + ", " + record + ", " + numKeys + ", "
-				+ operationID + ")";
+		return "(" + queryID + ", " + type.name() + ", " + key + ", " + value + ", " + record + ", "
+				+ numKeys + ", " + operationID + ")";
 	}
 
 	@Override
@@ -207,6 +207,37 @@ public class KVOperation<K, V> implements Serializable {
 		}
 		@SuppressWarnings("rawtypes")
 		KVOperation other = (KVOperation) obj;
+
+		if (type != other.type) {
+			return false;
+		}
+
+		if (queryID != other.queryID) {
+			return false;
+		}
+
+		switch (type) {
+		case REMOVE:
+		case GET:
+			return keyEquals(other);
+		case PUT:
+		case GETRES:
+		case REMOVERES:
+			return keyEquals(other) && valueEquals(other);
+		case MGET:
+			return keyEquals(other) && numKeyEquals(other) && opIDEquals(other);
+		case MGETRES:
+			return keyEquals(other) && valueEquals(other) && numKeyEquals(other) && opIDEquals(other);
+		case SGET:
+			return recordEquals(other);
+		case SGETRES:
+			return valueEquals(other) && recordEquals(other);
+		default:
+			return false;
+		}
+	}
+
+	private boolean keyEquals(KVOperation<?, ?> other) {
 		if (key == null) {
 			if (other.key != null) {
 				return false;
@@ -214,25 +245,10 @@ public class KVOperation<K, V> implements Serializable {
 		} else if (!key.equals(other.key)) {
 			return false;
 		}
-		if (numKeys != other.numKeys) {
-			return false;
-		}
-		if (operationID != other.operationID) {
-			return false;
-		}
-		if (queryID != other.queryID) {
-			return false;
-		}
-		if (record == null) {
-			if (other.record != null) {
-				return false;
-			}
-		} else if (!record.equals(other.record)) {
-			return false;
-		}
-		if (type != other.type) {
-			return false;
-		}
+		return true;
+	}
+
+	private boolean valueEquals(KVOperation<?, ?> other) {
 		if (value == null) {
 			if (other.value != null) {
 				return false;
@@ -243,4 +259,22 @@ public class KVOperation<K, V> implements Serializable {
 		return true;
 	}
 
+	private boolean recordEquals(KVOperation<?, ?> other) {
+		if (record == null) {
+			if (other.record != null) {
+				return false;
+			}
+		} else if (!record.equals(other.record)) {
+			return false;
+		}
+		return true;
+	}
+
+	private boolean numKeyEquals(KVOperation<?, ?> other) {
+		return numKeys == other.numKeys;
+	}
+
+	private boolean opIDEquals(KVOperation<?, ?> other) {
+		return operationID == other.operationID;
+	}
 }

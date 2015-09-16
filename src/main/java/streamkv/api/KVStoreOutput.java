@@ -40,45 +40,31 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 @SuppressWarnings("rawtypes")
 public class KVStoreOutput<K, V> {
 
-	private Map<Integer, DataStream<Tuple2<K, V>>> keyValueStreams;
 	private Map<Integer, DataStream> customKeyValueStreams;
 	private Map<Integer, DataStream<Tuple2<K, V>[]>> keyValueArrayStreams;
 
-	public KVStoreOutput(Map<Integer, DataStream<Tuple2<K, V>>> keyValueStreams, Map<Integer, DataStream> customKeyValueStreams,
+	public KVStoreOutput(Map<Integer, DataStream> customKeyValueStreams,
 			Map<Integer, DataStream<Tuple2<K, V>[]>> keyValueArrayStreams) {
-		this.keyValueStreams = keyValueStreams;
 		this.customKeyValueStreams = customKeyValueStreams;
 		this.keyValueArrayStreams = keyValueArrayStreams;
 	}
 
 	/**
-	 * Get the result stream for {@link KVStore#get} and {@link KVStore#remove}
-	 * operations.
+	 * Get the result stream for {@link KVStore#get}, {@link KVStore#remove} and
+	 * {@link KVStore#getWithKeySelector} operations.
+	 * <p>
+	 * Use type hints to aid the compiler:<br>
+	 * output.&lt;K,V&gt;getKVStream(queryID)
 	 * 
 	 * @param queryID
 	 * @return The resulting (key, value) stream.
 	 */
-	public DataStream<Tuple2<K, V>> getKVStream(int queryID) {
-		if (keyValueStreams.containsKey(queryID)) {
-			return keyValueStreams.get(queryID);
-		} else {
-			throw new IllegalArgumentException("Given query ID does not correspond to a KV stream.");
-		}
-	}
-
-	/**
-	 * Get the result stream for a {@link KVStore#getWithKeySelector} operation.
-	 * 
-	 * @param queryID
-	 * @return The resulting (record, value) stream.
-	 */
 	@SuppressWarnings("unchecked")
-	public <X> DataStream<Tuple2<X, V>> getCustomKVStream(int queryID) {
+	public <X> DataStream<Tuple2<X, V>> getKVStream(int queryID) {
 		if (customKeyValueStreams.containsKey(queryID)) {
 			return customKeyValueStreams.get(queryID);
 		} else {
-			throw new IllegalArgumentException(
-					"Given query ID does not correspond to an extracted KV stream.");
+			throw new IllegalArgumentException("Given query ID does not correspond to a KV stream.");
 		}
 	}
 

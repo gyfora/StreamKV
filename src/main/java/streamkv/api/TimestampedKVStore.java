@@ -48,6 +48,9 @@ import streamkv.types.KVOperation;
  */
 public class TimestampedKVStore<K, V> extends AsyncKVStore<K, V> {
 
+	protected TimestampedKVStore() {
+	}
+	
 	@Override
 	protected OneInputStreamOperator<KVOperation<K, V>, KVOperation<K, V>> getKVOperator() {
 		return new TimestampedKVStoreOperator<>();
