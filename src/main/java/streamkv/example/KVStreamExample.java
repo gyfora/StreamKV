@@ -31,22 +31,22 @@ import streamkv.api.KVStore.OperationOrdering;
 import streamkv.api.KVStoreOutput;
 
 /**
- * This example shows an implementation of a key value store with operations from
- * text sockets. To run the example make sure that the service providing the text
- * data is already up and running.
+ * This example shows an implementation of a key value store with operations
+ * from text sockets. To run the example make sure that the service providing
+ * the text data is already up and running.
  * <p>
  * To start an example socket text stream on your local machine run netcat from
  * a command line: <code>nc -lk 9999</code>, where the parameter specifies the
  * port number. Make sure to start the services for both port 9999 (for put),
  * 9998 (for get) and 9997 (for multiget).
- *
+ * 
  * This example shows how to:
  * <ul>
  * <li>use the {@link KVStore} abstraction
  * <li>put to the key-value store,
  * <li>get and multiget from the key-value store.
  * </ul>
- *
+ * 
  * @see <a href="www.openbsd.org/cgi-bin/man.cgi?query=nc">netcat</a>
  */
 public class KVStreamExample {
@@ -55,28 +55,36 @@ public class KVStreamExample {
 
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-		// Create a new KV store
+		// Create a new KV store for holding (String, Integer) pairs
 		KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.PARTIAL);
 
 		// Create query streams
+		// Put stream expected input format: key,value
 		DataStream<Tuple2<String, Integer>> putStream = env.socketTextStream("localhost", 9999).flatMap(
 				new Parser());
-		DataStream<String> getStream1 = env.socketTextStream("localhost", 9998);
-		DataStream<String[]> getStream2 = env.socketTextStream("localhost", 9997).flatMap(new KArrayParser());
 
-		// Apply the query streams to the KV store
+		// Get stream expected input format: key
+		DataStream<String> getStream = env.socketTextStream("localhost", 9998);
+
+		// MultiGet stream expected input format: key_1, key_2, ..., key_n
+		DataStream<String[]> multiGetStream = env.socketTextStream("localhost", 9997).flatMap(
+				new KArrayParser());
+
+		// Apply the query streams to the KV store and fetch the query IDs for
+		// the get and multiGet queries
 		store.put(putStream);
-		int id1 = store.get(getStream1);
-		int id2 = store.multiGet(getStream2);
+		int id1 = store.get(getStream);
+		int id2 = store.multiGet(multiGetStream);
 
-		// Finalize the KV store operations and get the result streams
+		// Finalize the KV store operations and get the output
 		KVStoreOutput<String, Integer> storeOutputs = store.getOutputs();
 
-		// Fetch the result streams for the 2 get queries using the assigned IDs
+		// Fetch the result streams for the get queries using the assigned IDs
 		// and print the results
 		storeOutputs.getKVStream(id1).print();
-		storeOutputs.<String>getKVArrayStream(id2).addSink(new PrintArray());
+		storeOutputs.<String> getKVArrayStream(id2).addSink(new PrintArray());
 
+		// Execute the program
 		env.execute();
 	}
 
@@ -90,7 +98,7 @@ public class KVStreamExample {
 				String[] split = value.split(",");
 				out.collect(Tuple2.of(split[0], Integer.valueOf(split[1])));
 			} catch (Exception e) {
-
+				System.err.println("Parsing error: " + value);
 			}
 		}
 	}
@@ -103,7 +111,7 @@ public class KVStreamExample {
 			try {
 				out.collect(value.split(","));
 			} catch (Exception e) {
-
+				System.err.println("Parsing error: " + value);
 			}
 		}
 	}
