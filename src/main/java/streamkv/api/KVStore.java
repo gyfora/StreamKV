@@ -62,8 +62,10 @@ public abstract class KVStore<K, V> {
 	public abstract void put(DataStream<Tuple2<K, V>> stream);
 
 	/**
-	 * Update the value of the provided key by reducing it with the current value using the reduce function provided. 
-	 * If there is no entry update this works like a put operation and creates a new KV entry for the given key.
+	 * Update the value of the provided key by reducing it with the current
+	 * value using the reduce function provided. If there is no entry update
+	 * this works like a put operation and creates a new KV entry for the given
+	 * key.
 	 * 
 	 * @param stream
 	 * @param reducer

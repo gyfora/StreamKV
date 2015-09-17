@@ -39,11 +39,14 @@ public class AsyncKVStoreOperatorTest {
 				operator);
 
 		ConcurrentLinkedQueue<Object> expectedOutput = new ConcurrentLinkedQueue<Object>();
-		
+
 		ReduceFunction<Integer> reducer = new ReduceFunction<Integer>() {
+
+			private static final long serialVersionUID = 1L;
+
 			@Override
 			public Integer reduce(Integer t1, Integer t2) throws Exception {
-				return t1 + t2; 
+				return t1 + t2;
 			}
 		};
 
@@ -73,9 +76,7 @@ public class AsyncKVStoreOperatorTest {
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(8, "z")));
 		testHarness.processElement(new StreamRecord<>(update(7, "z", 10, reducer)));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(8, "z")));
-		
-		
-		
+
 		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(1, "a", 1)));
 		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(1, "1", 2)));
 		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(2, "c", null)));
@@ -92,7 +93,7 @@ public class AsyncKVStoreOperatorTest {
 		expectedOutput.add(new StreamRecord<>(KVOperation.selectorMultiGetRes(6, 1, 2, (short) 5, 2L)));
 		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(8, "z", 1)));
 		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(8, "z", 11)));
-		
+
 		TestHarnessUtil
 				.assertOutputEquals("Output was not correct.", expectedOutput, testHarness.getOutput());
 	}
@@ -106,8 +107,9 @@ public class AsyncKVStoreOperatorTest {
 			return value.toString();
 		}
 	};
-	
-	public static KVOperation<String, Integer> update(int id, String key, Integer val, ReduceFunction<Integer> reducer) {
+
+	public static KVOperation<String, Integer> update(int id, String key, Integer val,
+			ReduceFunction<Integer> reducer) {
 		KVOperation<String, Integer> op = KVOperation.update(id, key, val);
 		op.setReducer(reducer);
 		return op;

@@ -69,11 +69,10 @@ public class AsyncKVStoreOperator<K, V> extends AbstractStreamOperator<KVOperati
 			break;
 		case UPDATE:
 			ReduceFunction<V> reduceFunction = op.getReducer();
-			if(!store.containsKey(key)) {
+			if (!store.containsKey(key)) {
 				store.put(key, op.getValue());
-			}
-			else {
-				//FIXME shall we copy here?
+			} else {
+				// FIXME shall we copy here?
 				store.put(key, reduceFunction.reduce(store.get(key), op.getValue()));
 			}
 			break;

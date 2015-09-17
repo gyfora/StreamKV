@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.commons.collections.map.HashedMap;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -43,8 +42,7 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 	public TypeInformation<V> valueType;
 	@SuppressWarnings("rawtypes")
 	Map<Integer, Tuple2<TypeSerializer, KeySelector>> selectors = new HashMap<>();
-	
-	@SuppressWarnings("rawtypes")
+
 	Map<Integer, ReduceFunction<V>> reducers = new HashMap<>();
 
 	public KVOperationTypeInfo(TypeInformation<K> keyType, TypeInformation<V> valueType) {
@@ -57,7 +55,6 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 		selectors.put(qID, Tuple2.of(inType, key));
 	}
 
-	@SuppressWarnings("rawtypes")
 	public void registerReducer(int qID, ReduceFunction<V> reduceFunction) {
 		reducers.put(qID, reduceFunction);
 	}
@@ -123,7 +120,8 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 		private Map<Integer, Tuple2<TypeSerializer, KeySelector>> selectors;
 		private Map<Integer, ReduceFunction<V>> reducers;
 
-		public KVOpSerializer(TypeSerializer<K> keySerializer, TypeSerializer<V> valueSerializer, Map<Integer, ReduceFunction<V>> reducers,
+		public KVOpSerializer(TypeSerializer<K> keySerializer, TypeSerializer<V> valueSerializer,
+				Map<Integer, ReduceFunction<V>> reducers,
 				Map<Integer, Tuple2<TypeSerializer, KeySelector>> selectors, ExecutionConfig config) {
 			this.keySerializer = keySerializer;
 			this.valueSerializer = valueSerializer;
