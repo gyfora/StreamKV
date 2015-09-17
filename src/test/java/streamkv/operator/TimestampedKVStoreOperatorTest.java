@@ -48,9 +48,10 @@ public class TimestampedKVStoreOperatorTest {
 		testHarness.processElement(new StreamRecord<>(KVOperation.put(0, "a", 1), 1));
 		testHarness.processElement(new StreamRecord<>(KVOperation.put(0, "a", 4), 6));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> remove(3, "c"), 11));
-		testHarness.processElement(new StreamRecord<>(selectorMultiGet(6, 1, 5, 2L, selector), 18));
 		testHarness.processElement(new StreamRecord<>(KVOperation.put(0, "1", 2), 2));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(1, "1"), 4));
+		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> multiGet(5, "d",
+				(short) 5, 2L), 17));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(2, "c"), 5));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(1, "a"), 3));
 
@@ -68,8 +69,7 @@ public class TimestampedKVStoreOperatorTest {
 				(short) 5, 1L), 16));
 		testHarness.processElement(new StreamRecord<>(selectorGet(4, 1, selector), 14));
 		testHarness.processElement(new StreamRecord<>(selectorGet(4, 2, selector), 15));
-		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> multiGet(5, "d",
-				(short) 5, 2L), 17));
+		testHarness.processElement(new StreamRecord<>(selectorMultiGet(6, 1, 5, 2L, selector), 17));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(2, "c"), 12));
 
 		testHarness.processWatermark(new Watermark(18));
@@ -87,7 +87,7 @@ public class TimestampedKVStoreOperatorTest {
 		expectedOutput.add(new StreamRecord<>(KVOperation.selectorGetRes(4, 2, null), 15));
 		expectedOutput.add(new StreamRecord<>(KVOperation.multiGetRes(5, "a", 4, (short) 5, 1L), 16));
 		expectedOutput.add(new StreamRecord<>(KVOperation.multiGetRes(5, "d", null, (short) 5, 2L), 17));
-		expectedOutput.add(new StreamRecord<>(KVOperation.selectorMultiGetRes(6, 1, 2, (short) 5, 2L), 18));
+		expectedOutput.add(new StreamRecord<>(KVOperation.selectorMultiGetRes(6, 1, 2, (short) 5, 2L), 17));
 
 		TestHarnessUtil
 				.assertOutputEquals("Output was not correct.", expectedOutput, testHarness.getOutput());

@@ -20,6 +20,8 @@ package streamkv.operator;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
@@ -53,7 +55,7 @@ public class TimestampedKVStoreOperator<K, V> extends AsyncKVStoreOperator<K, V>
 
 	private static final long serialVersionUID = 1L;
 
-	private OperatorState<TreeMap<Long, KVOperation<K, V>>> pendingOperations;
+	private OperatorState<TreeMap<Long, List<KVOperation<K, V>>>> pendingOperations;
 	private StreamRecord<KVOperation<K, V>> reuse;
 
 	@Override
@@ -64,14 +66,17 @@ public class TimestampedKVStoreOperator<K, V> extends AsyncKVStoreOperator<K, V>
 
 	@Override
 	public void processWatermark(Watermark mark) throws Exception {
-		TreeMap<Long, KVOperation<K, V>> ops = pendingOperations.value();
+		TreeMap<Long, List<KVOperation<K, V>>> ops = pendingOperations.value();
 
-		Iterator<Entry<Long, KVOperation<K, V>>> it = ops.headMap(mark.getTimestamp(), true).entrySet()
+		Iterator<Entry<Long, List<KVOperation<K, V>>>> it = ops.headMap(mark.getTimestamp(), true).entrySet()
 				.iterator();
 
 		while (it.hasNext()) {
-			Entry<Long, KVOperation<K, V>> next = it.next();
-			executeOperation(next.getValue(), reuse.<KVOperation<K, V>> replace(null, next.getKey()));
+			Entry<Long, List<KVOperation<K, V>>> next = it.next();
+			reuse.<KVOperation<K, V>> replace(null, next.getKey());
+			for (KVOperation<K, V> op : next.getValue()) {
+				executeOperation(op, reuse);
+			}
 			it.remove();
 		}
 
@@ -79,8 +84,13 @@ public class TimestampedKVStoreOperator<K, V> extends AsyncKVStoreOperator<K, V>
 	}
 
 	private void addToPending(KVOperation<K, V> op, long timestamp) throws IOException {
-		TreeMap<Long, KVOperation<K, V>> ops = pendingOperations.value();
-		ops.put(timestamp, op);
+		TreeMap<Long, List<KVOperation<K, V>>> ops = pendingOperations.value();
+		List<KVOperation<K, V>> p = ops.get(timestamp);
+		if (p == null) {
+			p = new LinkedList<>();
+			ops.put(timestamp, p);
+		}
+		p.add(op);
 		pendingOperations.update(ops);
 	}
 
@@ -88,6 +98,6 @@ public class TimestampedKVStoreOperator<K, V> extends AsyncKVStoreOperator<K, V>
 	public void open(Configuration c) throws IOException {
 		super.open(c);
 		pendingOperations = getRuntimeContext().getOperatorState("pendingOps",
-				new TreeMap<Long, KVOperation<K, V>>(), false);
+				new TreeMap<Long, List<KVOperation<K, V>>>(), false);
 	}
 }
