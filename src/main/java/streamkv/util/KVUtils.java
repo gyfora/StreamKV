@@ -106,7 +106,7 @@ public class KVUtils {
 		public void open(Configuration c) {
 			reuse = new KVOperation<>();
 			reuse.setQueryID(index);
-			reuse.setType(KVOperationType.PUT);
+			reuse.setType(KVOperationType.UPDATE);
 		}
 	}
 

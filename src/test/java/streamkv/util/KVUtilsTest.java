@@ -54,6 +54,21 @@ public class KVUtilsTest {
 	}
 
 	@Test
+	public void toUpdateTest() throws Exception {
+		RichMapFunction<Tuple2<Integer, String>, KVOperation<Integer, String>> toUpdate = new KVUtils.ToUpdate<>(3);
+		toUpdate.open(null);
+
+		assertEquals(KVOperation.update(3, 2, "a"), toUpdate.map(Tuple2.of(2, "a")));
+		assertEquals(KVOperation.<Integer, String> update(3, 1, null), toUpdate.map(Tuple2.of(1, (String) null)));
+		try {
+			toUpdate.map(Tuple2.of((Integer) null, "a"));
+			fail();
+		} catch (Exception e) {
+			// good
+		}
+	}
+	
+	@Test
 	public void toGetTest() throws Exception {
 		RichMapFunction<Integer, KVOperation<Integer, String>> toGet = new KVUtils.ToGet<>(2);
 		toGet.open(null);
