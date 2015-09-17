@@ -18,6 +18,7 @@
 package streamkv.api;
 
 import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -59,6 +60,15 @@ public abstract class KVStore<K, V> {
 	 *            Stream of {@link Tuple2}s representing the (K,V) pairs.
 	 */
 	public abstract void put(DataStream<Tuple2<K, V>> stream);
+
+	/**
+	 * Update the value of the provided key by reducing it with the current value using the reduce function provided. 
+	 * If there is no entry update this works like a put operation and creates a new KV entry for the given key.
+	 * 
+	 * @param stream
+	 * @param reducer
+	 */
+	public abstract void update(DataStream<Tuple2<K, V>> stream, ReduceFunction<V> reducer);
 
 	/**
 	 * Get elements from the store by specifying a stream of keys to retrieve.

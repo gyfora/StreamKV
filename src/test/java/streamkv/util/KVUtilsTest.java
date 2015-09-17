@@ -124,7 +124,7 @@ public class KVUtilsTest {
 
 		List<KVOperation<Integer, String>> elements = new ArrayList<>();
 		TypeSerializer<KVOperation<Integer, String>> s = new KVOperationTypeInfo.KVOpSerializer<>(
-				new IntSerializer(), null, null, null);
+				new IntSerializer(), null, null, null, null);
 
 		@Override
 		public void collect(KVOperation<Integer, String> record) {

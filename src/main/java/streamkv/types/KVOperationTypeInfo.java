@@ -23,7 +23,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.commons.collections.map.HashedMap;
 import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.functions.KeySelector;
@@ -41,6 +43,9 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 	public TypeInformation<V> valueType;
 	@SuppressWarnings("rawtypes")
 	Map<Integer, Tuple2<TypeSerializer, KeySelector>> selectors = new HashMap<>();
+	
+	@SuppressWarnings("rawtypes")
+	Map<Integer, ReduceFunction<V>> reducers = new HashMap<>();
 
 	public KVOperationTypeInfo(TypeInformation<K> keyType, TypeInformation<V> valueType) {
 		this.keyType = keyType;
@@ -50,6 +55,11 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 	@SuppressWarnings("rawtypes")
 	public void registerExtractor(int qID, TypeSerializer inType, KeySelector key) {
 		selectors.put(qID, Tuple2.of(inType, key));
+	}
+
+	@SuppressWarnings("rawtypes")
+	public void registerReducer(int qID, ReduceFunction<V> reduceFunction) {
+		reducers.put(qID, reduceFunction);
 	}
 
 	@Override
@@ -85,7 +95,7 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 	@Override
 	public TypeSerializer<KVOperation<K, V>> createSerializer(ExecutionConfig config) {
 		return new KVOpSerializer<>(keyType.createSerializer(config), valueType == null ? null
-				: valueType.createSerializer(config), selectors, config);
+				: valueType.createSerializer(config), reducers, selectors, config);
 	}
 
 	@Override
@@ -111,11 +121,13 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 		private TypeSerializer<K> keySerializer;
 		private TypeSerializer<V> valueSerializer;
 		private Map<Integer, Tuple2<TypeSerializer, KeySelector>> selectors;
+		private Map<Integer, ReduceFunction<V>> reducers;
 
-		public KVOpSerializer(TypeSerializer<K> keySerializer, TypeSerializer<V> valueSerializer,
+		public KVOpSerializer(TypeSerializer<K> keySerializer, TypeSerializer<V> valueSerializer, Map<Integer, ReduceFunction<V>> reducers,
 				Map<Integer, Tuple2<TypeSerializer, KeySelector>> selectors, ExecutionConfig config) {
 			this.keySerializer = keySerializer;
 			this.valueSerializer = valueSerializer;
+			this.reducers = reducers;
 			this.selectors = selectors;
 		}
 
@@ -153,6 +165,11 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 			case REMOVERES:
 				to.setKey(copyWithReuse(from.getKey(), to.getKey(), keySerializer));
 				to.setValue(copyWithReuse(from.getValue(), to.getValue(), valueSerializer));
+				break;
+			case UPDATE:
+				to.setKey(copyWithReuse(from.getKey(), to.getKey(), keySerializer));
+				to.setValue(copyWithReuse(from.getValue(), to.getValue(), valueSerializer));
+				to.setReducer(from.getReducer());
 				break;
 			case GET:
 			case REMOVE:
@@ -272,6 +289,11 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 				target.writeLong(op.getOperationID());
 				target.writeShort(op.getNumKeys());
 				break;
+			case UPDATE:
+				target.writeShort(11);
+				keySerializer.serialize(op.getKey(), target);
+				valueSerializer.serialize(op.getValue(), target);
+				break;
 			default:
 				throw new RuntimeException("Invalid operation: " + op.getType().name());
 			}
@@ -359,6 +381,11 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 				op.setValue(deserializeValWithNull(op.getValue(), source));
 				op.setOperationID(source.readLong());
 				op.setNumKeys(source.readShort());
+				break;
+			case UPDATE:
+				op.setKey(deserializeWithReuse(source, op.getKey(), keySerializer));
+				op.setValue(deserializeWithReuse(source, op.getValue(), valueSerializer));
+				op.setReducer(reducers.get(op.getQueryID()));
 				break;
 			default:
 				break;

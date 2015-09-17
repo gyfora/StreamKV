@@ -17,8 +17,10 @@
 
 package streamkv.util;
 
+import java.util.HashMap;
 import java.util.Random;
 
+import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.base.IntSerializer;
 import org.apache.flink.api.common.typeutils.base.StringSerializer;
@@ -36,7 +38,7 @@ public class RandomKVOperationGenerator {
 	private Random rnd = new Random();
 	@SuppressWarnings("rawtypes")
 	private KVOpSerializer<Integer, Integer> serializer = new KVOpSerializer<>(new IntSerializer(),
-			new IntSerializer(), ImmutableMap.of(0,
+			new IntSerializer(), new HashMap<Integer,ReduceFunction<Integer>>(), ImmutableMap.of(0,
 					Tuple2.<TypeSerializer, KeySelector> of(new StringSerializer(), null)), null);
 
 	public KVOperation<Integer, Integer>[] generate(int numOperations) {
@@ -87,6 +89,8 @@ public class RandomKVOperationGenerator {
 			return KVOperation.<Integer, Integer> selectorMultiGetRes(0,
 					((Integer) rnd.nextInt()).toString(), rnd.nextInt(), (short) rnd.nextInt(),
 					rnd.nextLong());
+		case UPDATE:
+			return KVOperation.update(0, rnd.nextInt(), rnd.nextInt());	
 		default:
 			break;
 		}

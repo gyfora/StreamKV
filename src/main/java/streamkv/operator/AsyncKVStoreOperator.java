@@ -20,6 +20,7 @@ package streamkv.operator;
 import java.io.IOException;
 import java.util.HashMap;
 
+import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.common.state.OperatorState;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.configuration.Configuration;
@@ -65,6 +66,16 @@ public class AsyncKVStoreOperator<K, V> extends AbstractStreamOperator<KVOperati
 		switch (op.getType()) {
 		case PUT:
 			store.put(key, op.getValue());
+			break;
+		case UPDATE:
+			ReduceFunction<V> reduceFunction = op.getReducer();
+			if(!store.containsKey(key)) {
+				store.put(key, op.getValue());
+			}
+			else {
+				//FIXME shall we copy here?
+				store.put(key, reduceFunction.reduce(store.get(key), op.getValue()));
+			}
 			break;
 		case GET:
 			output.collect(reuse.replace(KVOperation.getRes(op.getQueryID(), key, store.get(key))));

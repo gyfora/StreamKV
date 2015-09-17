@@ -17,11 +17,11 @@
 
 package streamkv.types;
 
-import java.io.Serializable;
-
+import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.functions.KeySelector;
-
 import streamkv.api.KVStore;
+
+import java.io.Serializable;
 
 /**
  * Internal class wrapping all operations that can be applied on a
@@ -36,9 +36,8 @@ import streamkv.api.KVStore;
 public class KVOperation<K, V> implements Serializable {
 
 	private static final long serialVersionUID = 4333191409809358657L;
-
 	public enum KVOperationType {
-		PUT, GET, REMOVE, MGET, SGET, GETRES, REMOVERES, MGETRES, SGETRES, SMGET, SMGETRES;
+		PUT, GET, REMOVE, MGET, SGET, GETRES, REMOVERES, MGETRES, SGETRES, SMGET, SMGETRES, UPDATE;
 	}
 
 	public static KVOperationType[] types = KVOperationType.values();
@@ -54,6 +53,9 @@ public class KVOperation<K, V> implements Serializable {
 	// For GET with KeySelector
 	private Object record;
 	private KeySelector<Object, K> keySelector;
+	
+	// For UPDATE operations
+	private ReduceFunction<V> reducer;
 
 	// For MULTIGET operations
 	private long operationID;
@@ -80,6 +82,15 @@ public class KVOperation<K, V> implements Serializable {
 	public void setKey(K key) {
 		this.key = key;
 	}
+	
+	public ReduceFunction<V> getReducer() {
+		return reducer;
+	}
+
+	public void setReducer(ReduceFunction<V> reducer) {
+		this.reducer = reducer;
+	}
+
 
 	public K getKey() {
 		return key;
@@ -144,6 +155,10 @@ public class KVOperation<K, V> implements Serializable {
 	public static <K, V> KVOperation<K, V> put(int id, K key, V value) {
 		return new KVOperation<>(id, key, value, null, KVOperationType.PUT);
 	}
+	
+	public static <K, V> KVOperation<K, V> update(int id, K key, V value) {
+		return new KVOperation<>(id, key, value, null, KVOperationType.UPDATE);
+	}
 
 	public static <K, V> KVOperation<K, V> getRes(int id, K key, V value) {
 		return new KVOperation<>(id, key, value, null, KVOperationType.GETRES);
@@ -196,7 +211,6 @@ public class KVOperation<K, V> implements Serializable {
 		final int prime = 31;
 		int result = 1;
 		result = prime * result + ((key == null) ? 0 : key.hashCode());
-		result = prime * result + ((keySelector == null) ? 0 : keySelector.hashCode());
 		result = prime * result + numKeys;
 		result = prime * result + (int) (operationID ^ (operationID >>> 32));
 		result = prime * result + queryID;
@@ -230,6 +244,7 @@ public class KVOperation<K, V> implements Serializable {
 		case GET:
 			return keyEquals(other);
 		case PUT:
+		case UPDATE:
 		case GETRES:
 		case REMOVERES:
 			return keyEquals(other) && valueEquals(other);
