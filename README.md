@@ -31,6 +31,7 @@ storeOutputs.getKVArrayStream(id2).print();
 **Supported operations**
 * Put
 * Remove
+* Update
 * Get
 * GetWithKeySelector
 * MultiGet

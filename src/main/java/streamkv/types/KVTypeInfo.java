@@ -158,6 +158,30 @@ public class KVTypeInfo<K, V> extends TypeInformation<Tuple2<K, V>> {
 		public void copy(DataInputView source, DataOutputView target) throws IOException {
 			throw new UnsupportedOperationException("Not implemented yet!");
 		}
+
+		@Override
+		public boolean canEqual(Object obj) {
+			return obj instanceof KVSerializer;
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+
+			KVSerializer<?, ?> that = (KVSerializer<?, ?>) o;
+
+			if (!keySerializer.equals(that.keySerializer)) return false;
+			return !(valueSerializer != null ? !valueSerializer.equals(that.valueSerializer) : that.valueSerializer != null);
+
+		}
+
+		@Override
+		public int hashCode() {
+			int result = keySerializer.hashCode();
+			result = 31 * result + (valueSerializer != null ? valueSerializer.hashCode() : 0);
+			return result;
+		}
 	}
 
 	public static <X> X copyWithReuse(X from, X reuse, TypeSerializer<X> serializer) {
@@ -186,9 +210,35 @@ public class KVTypeInfo<K, V> extends TypeInformation<Tuple2<K, V>> {
 	}
 
 	@Override
-	public String toString() {
-		return this.getClass().getCanonicalName() + "[" + keyType.toString() + "," + valueType.toString()
-				+ "]";
+	public boolean canEqual(Object obj) {
+		return obj instanceof KVTypeInfo;
 	}
 
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+
+		KVTypeInfo<?, ?> that = (KVTypeInfo<?, ?>) o;
+
+		if (!keyType.equals(that.keyType)) return false;
+		return !(valueType != null ? !valueType.equals(that.valueType) : that.valueType != null);
+
+	}
+
+	@Override
+	public int hashCode() {
+		int result = keyType.hashCode();
+		result = 31 * result + (valueType != null ? valueType.hashCode() : 0);
+		return result;
+	}
+
+
+	@Override
+	public String toString() {
+		return "KVTypeInfo{" +
+				"keyType=" + keyType +
+				", valueType=" + valueType +
+				'}';
+	}
 }

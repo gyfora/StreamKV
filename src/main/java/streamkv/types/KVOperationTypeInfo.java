@@ -94,6 +94,12 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 		return new KVOpSerializer<>(keyType.createSerializer(config), valueType == null ? null
 				: valueType.createSerializer(config), reducers, selectors, config);
 	}
+	
+	@Override
+	public boolean canEqual(Object obj) {
+		return obj instanceof KVOperationTypeInfo;
+	}
+	
 
 	@Override
 	public boolean equals(Object other) {
@@ -109,6 +115,25 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 		} else {
 			return false;
 		}
+	}
+
+	@Override
+	public int hashCode() {
+		int result = keyType != null ? keyType.hashCode() : 0;
+		result = 31 * result + (valueType != null ? valueType.hashCode() : 0);
+		result = 31 * result + (selectors != null ? selectors.hashCode() : 0);
+		result = 31 * result + (reducers != null ? reducers.hashCode() : 0);
+		return result;
+	}
+
+	@Override
+	public String toString() {
+		return "KVOperationTypeInfo{" +
+				"keyType=" + keyType +
+				", valueType=" + valueType +
+				", selectors=" + selectors +
+				", reducers=" + reducers +
+				'}';
 	}
 
 	@SuppressWarnings("rawtypes")
@@ -147,6 +172,35 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 		@Override
 		public KVOperation<K, V> copy(KVOperation<K, V> from) {
 			return copy(from, createInstance());
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+
+			KVOpSerializer<?, ?> that = (KVOpSerializer<?, ?>) o;
+
+			if (!keySerializer.equals(that.keySerializer)) return false;
+			if (valueSerializer != null ? !valueSerializer.equals(that.valueSerializer) : that.valueSerializer != null)
+				return false;
+			if (selectors != null ? !selectors.equals(that.selectors) : that.selectors != null) return false;
+			return !(reducers != null ? !reducers.equals(that.reducers) : that.reducers != null);
+
+		}
+
+		@Override
+		public boolean canEqual(Object obj) {
+			return obj instanceof KVOperationTypeInfo;
+		}
+		
+		@Override
+		public int hashCode() {
+			int result = keySerializer.hashCode();
+			result = 31 * result + (valueSerializer != null ? valueSerializer.hashCode() : 0);
+			result = 31 * result + (selectors != null ? selectors.hashCode() : 0);
+			result = 31 * result + (reducers != null ? reducers.hashCode() : 0);
+			return result;
 		}
 
 		@SuppressWarnings("unchecked")

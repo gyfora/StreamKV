@@ -68,6 +68,30 @@ public class KVArrayTypeInfo<K, V> extends TypeInformation<Tuple2<K, V>[]> {
 	public boolean isKeyType() {
 		return false;
 	}
+	
+	@Override
+	public boolean canEqual(Object obj) {
+		return obj instanceof KVArrayTypeInfo;
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+
+		KVArrayTypeInfo<?, ?> that = (KVArrayTypeInfo<?, ?>) o;
+
+		if (kvType != null ? !kvType.equals(that.kvType) : that.kvType != null) return false;
+		return !(kvSerializer != null ? !kvSerializer.equals(that.kvSerializer) : that.kvSerializer != null);
+
+	}
+
+	@Override
+	public int hashCode() {
+		int result = kvType != null ? kvType.hashCode() : 0;
+		result = 31 * result + (kvSerializer != null ? kvSerializer.hashCode() : 0);
+		return result;
+	}
 
 	@Override
 	public TypeSerializer<Tuple2<K, V>[]> createSerializer(ExecutionConfig config) {
@@ -81,4 +105,11 @@ public class KVArrayTypeInfo<K, V> extends TypeInformation<Tuple2<K, V>[]> {
 		}
 	}
 
+	@Override
+	public String toString() {
+		return "KVArrayTypeInfo{" +
+				"kvType=" + kvType +
+				", kvSerializer=" + kvSerializer +
+				'}';
+	}
 }
