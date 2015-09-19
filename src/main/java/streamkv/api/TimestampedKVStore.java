@@ -23,6 +23,7 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 
 import streamkv.operator.TimestampedKVStoreOperator;
 import streamkv.types.KVOperation;
+import streamkv.types.KVOperationTypeInfo.KVOpSerializer;
 
 /**
  * {@link KVStore} implementation that executes operations in time order. Time
@@ -52,7 +53,7 @@ public class TimestampedKVStore<K, V> extends AsyncKVStore<K, V> {
 	}
 	
 	@Override
-	protected OneInputStreamOperator<KVOperation<K, V>, KVOperation<K, V>> getKVOperator() {
-		return new TimestampedKVStoreOperator<>();
+	protected OneInputStreamOperator<KVOperation<K, V>, KVOperation<K, V>> getKVOperator(KVOpSerializer<K, V> serializer) {
+		return new TimestampedKVStoreOperator<>(serializer);
 	}
 }

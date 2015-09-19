@@ -30,7 +30,9 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
+import streamkv.operator.checkpointing.PendingOperationCheckpointer;
 import streamkv.types.KVOperation;
+import streamkv.types.KVOperationTypeInfo.KVOpSerializer;
 
 /**
  * Time aware implementation of the KVStore operator, which executes operations
@@ -57,6 +59,10 @@ public class TimestampedKVStoreOperator<K, V> extends AsyncKVStoreOperator<K, V>
 
 	private OperatorState<TreeMap<Long, List<KVOperation<K, V>>>> pendingOperations;
 	private StreamRecord<KVOperation<K, V>> reuse;
+
+	public TimestampedKVStoreOperator(KVOpSerializer<K, V> kvOpSerializer) {
+		super(kvOpSerializer);
+	}
 
 	@Override
 	public void processElement(StreamRecord<KVOperation<K, V>> element) throws Exception {
@@ -98,6 +104,7 @@ public class TimestampedKVStoreOperator<K, V> extends AsyncKVStoreOperator<K, V>
 	public void open(Configuration c) throws IOException {
 		super.open(c);
 		pendingOperations = getRuntimeContext().getOperatorState("pendingOps",
-				new TreeMap<Long, List<KVOperation<K, V>>>(), false);
+				new TreeMap<Long, List<KVOperation<K, V>>>(), false,
+				new PendingOperationCheckpointer<>(kvOpSerializer));
 	}
 }

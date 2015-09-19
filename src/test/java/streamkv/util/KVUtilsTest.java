@@ -28,6 +28,8 @@ import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.base.IntSerializer;
+import org.apache.flink.api.common.typeutils.base.StringSerializer;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.util.Collector;
@@ -35,6 +37,8 @@ import org.junit.Test;
 
 import streamkv.types.KVOperation;
 import streamkv.types.KVOperationTypeInfo;
+
+import com.google.common.collect.ImmutableMap;
 
 public class KVUtilsTest {
 
@@ -55,11 +59,13 @@ public class KVUtilsTest {
 
 	@Test
 	public void toUpdateTest() throws Exception {
-		RichMapFunction<Tuple2<Integer, String>, KVOperation<Integer, String>> toUpdate = new KVUtils.ToUpdate<>(3);
+		RichMapFunction<Tuple2<Integer, String>, KVOperation<Integer, String>> toUpdate = new KVUtils.ToUpdate<>(
+				3);
 		toUpdate.open(null);
 
 		assertEquals(KVOperation.update(3, 2, "a"), toUpdate.map(Tuple2.of(2, "a")));
-		assertEquals(KVOperation.<Integer, String> update(3, 1, null), toUpdate.map(Tuple2.of(1, (String) null)));
+		assertEquals(KVOperation.<Integer, String> update(3, 1, null),
+				toUpdate.map(Tuple2.of(1, (String) null)));
 		try {
 			toUpdate.map(Tuple2.of((Integer) null, "a"));
 			fail();
@@ -67,7 +73,7 @@ public class KVUtilsTest {
 			// good
 		}
 	}
-	
+
 	@Test
 	public void toGetTest() throws Exception {
 		RichMapFunction<Integer, KVOperation<Integer, String>> toGet = new KVUtils.ToGet<>(2);
@@ -133,13 +139,51 @@ public class KVUtilsTest {
 		} catch (Exception e) {
 			// good
 		}
+		try {
+			toMGet.flatMap(new Integer[] {}, out);
+			fail();
+		} catch (Exception e) {
+			// good
+		}
+	}
+
+	@Test
+	public void toSMGetTest() throws Exception {
+		RichFlatMapFunction<Object, KVOperation<Integer, String>> toSMGet = new KVUtils.ToSMGet<Integer, String>(
+				2);
+		toSMGet.open(null);
+
+		MyCollector out = new MyCollector();
+
+		toSMGet.flatMap(new String[] { "a", "b" }, out);
+
+		long opID = out.elements.get(0).getOperationID();
+
+		assertEquals(
+				out.elements,
+				Arrays.asList(KVOperation.selectorMultiGet(2, "a", (short) 2, opID),
+						KVOperation.selectorMultiGet(2, "b", (short) 2, opID)));
+		try {
+			toSMGet.flatMap(new Integer[] { 1, null, 3 }, out);
+			fail();
+		} catch (Exception e) {
+			// good
+		}
+		try {
+			toSMGet.flatMap(new Integer[] {}, out);
+			fail();
+		} catch (Exception e) {
+			// good
+		}
 	}
 
 	private class MyCollector implements Collector<KVOperation<Integer, String>> {
 
 		List<KVOperation<Integer, String>> elements = new ArrayList<>();
-		TypeSerializer<KVOperation<Integer, String>> s = new KVOperationTypeInfo.KVOpSerializer<>(
-				new IntSerializer(), null, null, null, null);
+		@SuppressWarnings("rawtypes")
+		TypeSerializer<KVOperation<Integer, String>> s = new KVOperationTypeInfo.KVOpSerializer<Integer, String>(
+				IntSerializer.INSTANCE, null, null, ImmutableMap.of(2,
+						Tuple2.<TypeSerializer, KeySelector> of(StringSerializer.INSTANCE, null)), null);
 
 		@Override
 		public void collect(KVOperation<Integer, String> record) {

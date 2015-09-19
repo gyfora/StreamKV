@@ -20,6 +20,8 @@ package streamkv.operator;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.common.typeutils.base.IntSerializer;
+import org.apache.flink.api.common.typeutils.base.StringSerializer;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
@@ -27,28 +29,21 @@ import org.apache.flink.streaming.util.TestHarnessUtil;
 import org.junit.Test;
 
 import streamkv.types.KVOperation;
+import streamkv.types.KVOperationTypeInfo.KVOpSerializer;
 
 public class AsyncKVStoreOperatorTest {
 
 	@Test
 	public void testKVOperator() throws Exception {
 
-		AsyncKVStoreOperator<String, Integer> operator = new AsyncKVStoreOperator<>();
+		AsyncKVStoreOperator<String, Integer> operator = new AsyncKVStoreOperator<>(
+				new KVOpSerializer<String, Integer>(StringSerializer.INSTANCE, IntSerializer.INSTANCE, null,
+						null, null));
 
 		OneInputStreamOperatorTestHarness<KVOperation<String, Integer>, KVOperation<String, Integer>> testHarness = new OneInputStreamOperatorTestHarness<>(
 				operator);
 
 		ConcurrentLinkedQueue<Object> expectedOutput = new ConcurrentLinkedQueue<Object>();
-
-		ReduceFunction<Integer> reducer = new ReduceFunction<Integer>() {
-
-			private static final long serialVersionUID = 1L;
-
-			@Override
-			public Integer reduce(Integer t1, Integer t2) throws Exception {
-				return t1 + t2;
-			}
-		};
 
 		testHarness.open();
 
@@ -97,6 +92,16 @@ public class AsyncKVStoreOperatorTest {
 		TestHarnessUtil
 				.assertOutputEquals("Output was not correct.", expectedOutput, testHarness.getOutput());
 	}
+
+	public static ReduceFunction<Integer> reducer = new ReduceFunction<Integer>() {
+
+		private static final long serialVersionUID = 1L;
+
+		@Override
+		public Integer reduce(Integer t1, Integer t2) throws Exception {
+			return t1 + t2;
+		}
+	};
 
 	public static KeySelector<Object, String> selector = new KeySelector<Object, String>() {
 

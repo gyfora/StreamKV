@@ -17,7 +17,6 @@
 
 package streamkv.util;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -25,7 +24,6 @@ import java.util.Random;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
-import org.apache.flink.api.common.state.OperatorState;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -234,6 +232,9 @@ public class KVUtils {
 
 		@Override
 		public void flatMap(K[] keys, Collector<KVOperation<K, V>> out) throws Exception {
+			if (keys.length == 0) {
+				throw new RuntimeException("Number of keys must be at least 1.");
+			}
 			reuse.setNumKeys((short) keys.length);
 			reuse.setOperationID(rnd.nextLong());
 			for (K key : keys) {
@@ -268,6 +269,9 @@ public class KVUtils {
 		@Override
 		public void flatMap(Object in, Collector<KVOperation<K, V>> out) throws Exception {
 			Object[] keys = (Object[]) in;
+			if (keys.length == 0) {
+				throw new RuntimeException("Number of keys must be at least 1.");
+			}
 			reuse.setNumKeys((short) keys.length);
 			reuse.setOperationID(rnd.nextLong());
 			for (Object key : keys) {
@@ -283,49 +287,6 @@ public class KVUtils {
 			reuse.setQueryID(index);
 			reuse.setType(KVOperationType.SMGET);
 			rnd = new Random();
-		}
-	}
-
-	@SuppressWarnings("rawtypes")
-	public static class MGetMerge<K, V> extends RichFlatMapFunction<KVOperation<K, V>, Tuple2[]> {
-
-		private static final long serialVersionUID = 1L;
-
-		private OperatorState<Tuple2<Integer, Tuple2[]>> merged;
-
-		@Override
-		public void flatMap(KVOperation<K, V> next, Collector<Tuple2[]> out) throws Exception {
-			Tuple2<Integer, Tuple2[]> partial = merged.value();
-			Object key = next.getType() == KVOperationType.MGETRES ? next.getKey() : next.getRecord();
-			short numKeys = next.getNumKeys();
-
-			if (numKeys == 0) {
-				throw new RuntimeException("Number of keys must be at least 1");
-			}
-
-			if (partial.f1 == null) {
-				partial.f0 = (int) numKeys - 1;
-				partial.f1 = new Tuple2[numKeys];
-				partial.f1[0] = Tuple2.of(key, next.getValue());
-
-			} else {
-				partial.f0 -= 1;
-				partial.f1[numKeys - partial.f0 - 1] = Tuple2.of(key, next.getValue());
-			}
-
-			if (partial.f0 == 0) {
-				out.collect(partial.f1);
-				merged.update(null);
-			} else {
-				merged.update(partial);
-			}
-
-		}
-
-		@Override
-		public void open(Configuration conf) throws IOException {
-			merged = getRuntimeContext().getOperatorState("merged",
-					Tuple2.<Integer, Tuple2[]> of(null, null), true);
 		}
 	}
 

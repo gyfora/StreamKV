@@ -140,8 +140,8 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 	public static class KVOpSerializer<K, V> extends TypeSerializer<KVOperation<K, V>> {
 
 		private static final long serialVersionUID = 1L;
-		private TypeSerializer<K> keySerializer;
-		private TypeSerializer<V> valueSerializer;
+		public TypeSerializer<K> keySerializer;
+		public TypeSerializer<V> valueSerializer;
 		private Map<Integer, Tuple2<TypeSerializer, KeySelector>> selectors;
 		private Map<Integer, ReduceFunction<V>> reducers;
 

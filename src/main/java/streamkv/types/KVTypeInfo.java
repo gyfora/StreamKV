@@ -85,8 +85,8 @@ public class KVTypeInfo<K, V> extends TypeInformation<Tuple2<K, V>> {
 	public static class KVSerializer<K, V> extends TypeSerializer<Tuple2<K, V>> {
 
 		private static final long serialVersionUID = 1L;
-		TypeSerializer<K> keySerializer;
-		TypeSerializer<V> valueSerializer;
+		public final TypeSerializer<K> keySerializer;
+		public final TypeSerializer<V> valueSerializer;
 
 		public KVSerializer(TypeSerializer<K> keySerializer, TypeSerializer<V> valueSerializer) {
 			this.keySerializer = keySerializer;

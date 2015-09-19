@@ -33,7 +33,7 @@ public class TimestampedKVLocalBenchmark extends LocalBenchmark {
 
 	private static final long serialVersionUID = 1L;
 	
-	private static final long ELEMENTS_PER_QUERY = 10_000_000L;
+	private static final long ELEMENTS_PER_QUERY = 1_000_000L;
 	private static final int NUM_KEYS = 1000;
 	private static final int KEYS_PER_MGET = 10;
 	private static final int WATERMARK_FREQUENCY = 1000;

@@ -20,16 +20,19 @@ package streamkv.operator;
 import java.io.IOException;
 import java.util.HashMap;
 
+import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.common.state.OperatorState;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
+import org.apache.flink.streaming.api.operators.AbstractUdfStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
+import streamkv.operator.checkpointing.KVMapCheckpointer;
 import streamkv.types.KVOperation;
+import streamkv.types.KVOperationTypeInfo.KVOpSerializer;
 
 /**
  * Asynchronous implementation of the KVStore operator, which executes
@@ -42,12 +45,19 @@ import streamkv.types.KVOperation;
  * @param <V>
  *            Type of the values.
  */
-public class AsyncKVStoreOperator<K, V> extends AbstractStreamOperator<KVOperation<K, V>> implements
+@SuppressWarnings("rawtypes")
+public class AsyncKVStoreOperator<K, V> extends AbstractUdfStreamOperator<KVOperation<K, V>, MapFunction> implements
 		OneInputStreamOperator<KVOperation<K, V>, KVOperation<K, V>> {
 
 	private static final long serialVersionUID = 1L;
 
 	private OperatorState<HashMap<K, V>> kvStore;
+	protected KVOpSerializer<K, V> kvOpSerializer;
+
+	public AsyncKVStoreOperator(KVOpSerializer<K, V> kvOpSerializer) {
+		super(null);
+		this.kvOpSerializer = kvOpSerializer;
+	}
 
 	@Override
 	public void processElement(StreamRecord<KVOperation<K, V>> element) throws Exception {
@@ -107,6 +117,7 @@ public class AsyncKVStoreOperator<K, V> extends AbstractStreamOperator<KVOperati
 
 	@Override
 	public void open(Configuration c) throws IOException {
-		kvStore = getRuntimeContext().getOperatorState("kv-store", new HashMap<K, V>(), false);
+		kvStore = getRuntimeContext().getOperatorState("kv-store", new HashMap<K, V>(), false,
+				new KVMapCheckpointer<>(kvOpSerializer.keySerializer, kvOpSerializer.valueSerializer));
 	}
 }

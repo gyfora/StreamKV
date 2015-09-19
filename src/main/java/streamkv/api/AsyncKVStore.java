@@ -38,9 +38,11 @@ import org.apache.flink.streaming.api.datastream.SplitDataStream;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 
 import streamkv.operator.AsyncKVStoreOperator;
+import streamkv.operator.MultiGetMerger;
 import streamkv.types.KVArrayTypeInfo;
 import streamkv.types.KVOperation;
 import streamkv.types.KVOperationTypeInfo;
+import streamkv.types.KVOperationTypeInfo.KVOpSerializer;
 import streamkv.types.KVTypeInfo;
 import streamkv.types.KVTypeInfo.KVSerializer;
 import streamkv.util.KVUtils;
@@ -223,7 +225,8 @@ public class AsyncKVStore<K, V> extends KVStore<K, V> {
 
 		// Apply the operator that executes the KVStore logic then split the
 		// output by their query ID
-		OneInputStreamOperator<KVOperation<K, V>, KVOperation<K, V>> op = getKVOperator();
+		OneInputStreamOperator<KVOperation<K, V>, KVOperation<K, V>> op = getKVOperator((KVOpSerializer<K, V>) kvOpType
+				.createSerializer(config));
 		SplitDataStream<KVOperation<K, V>> split = input.transform(op.getClass().getSimpleName(), kvOpType,
 				op).split(new KVUtils.IDOutputSelector<K, V>());
 
@@ -254,8 +257,12 @@ public class AsyncKVStore<K, V> extends KVStore<K, V> {
 		}
 
 		for (Tuple2<DataStream<K[]>, Integer> query : multiGet) {
-			DataStream<Tuple2[]> projected = split.select(query.f1.toString())
-					.groupBy(new KVUtils.OperationIDSelector<K, V>()).flatMap(new KVUtils.MGetMerge<K, V>())
+			DataStream<Tuple2[]> projected = split
+					.select(query.f1.toString())
+					.groupBy(new KVUtils.OperationIDSelector<K, V>())
+					.flatMap(
+							new MultiGetMerger<K, V>(kvOpType.keyType.createSerializer(config),
+									kvOpType.valueType.createSerializer(config)))
 					.returns((TypeInformation<Tuple2[]>) (TypeInformation) new KVArrayTypeInfo<>(kvType));
 			keyValueArrayStreams.put(query.f1, projected);
 		}
@@ -264,7 +271,9 @@ public class AsyncKVStore<K, V> extends KVStore<K, V> {
 			DataStream<Tuple2[]> projected = split
 					.select(query.f2.toString())
 					.groupBy(new KVUtils.OperationIDSelector<K, V>())
-					.flatMap(new KVUtils.MGetMerge<K, V>())
+					.flatMap(
+							new MultiGetMerger<K, V>(getComponentSerializer(query.f0.getType()
+									.createSerializer(config)), kvOpType.valueType.createSerializer(config)))
 					.returns(
 							(TypeInformation<Tuple2[]>) (TypeInformation) new KVArrayTypeInfo<>(
 									new KVSerializer<>(getComponentSerializer(query.f0.getType()
@@ -296,8 +305,9 @@ public class AsyncKVStore<K, V> extends KVStore<K, V> {
 		}
 	}
 
-	protected OneInputStreamOperator<KVOperation<K, V>, KVOperation<K, V>> getKVOperator() {
-		return new AsyncKVStoreOperator<>();
+	protected OneInputStreamOperator<KVOperation<K, V>, KVOperation<K, V>> getKVOperator(
+			KVOpSerializer<K, V> serializer) {
+		return new AsyncKVStoreOperator<>(serializer);
 	}
 
 }

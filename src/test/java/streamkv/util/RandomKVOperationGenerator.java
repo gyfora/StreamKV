@@ -18,6 +18,8 @@
 package streamkv.util;
 
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Random;
 
 import org.apache.flink.api.common.functions.ReduceFunction;
@@ -37,7 +39,7 @@ public class RandomKVOperationGenerator {
 
 	private Random rnd = new Random();
 	@SuppressWarnings("rawtypes")
-	private KVOpSerializer<Integer, Integer> serializer = new KVOpSerializer<>(new IntSerializer(),
+	public static KVOpSerializer<Integer, Integer> opSerializer = new KVOpSerializer<>(new IntSerializer(),
 			new IntSerializer(), new HashMap<Integer, ReduceFunction<Integer>>(), ImmutableMap.of(0,
 					Tuple2.<TypeSerializer, KeySelector> of(new StringSerializer(), null)), null);
 
@@ -53,8 +55,19 @@ public class RandomKVOperationGenerator {
 		return output;
 	}
 
+	public List<KVOperation<Integer, Integer>> generateList(int numOperations) {
+
+		List<KVOperation<Integer, Integer>> ops = new LinkedList<>();
+
+		for (int i = 0; i < numOperations; i++) {
+			ops.add(generateOp());
+		}
+
+		return ops;
+	}
+
 	public KVOpSerializer<Integer, Integer> getSerializer() {
-		return serializer;
+		return opSerializer;
 	}
 
 	public KVOperation<Integer, Integer> generateOp() {
