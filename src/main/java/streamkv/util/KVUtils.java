@@ -78,7 +78,7 @@ public class KVUtils {
 		@Override
 		public void open(Configuration c) {
 			reuse = new KVOperation<>();
-			reuse.setQueryID(index);
+			reuse.setQueryID((short) index);
 			reuse.setType(KVOperationType.PUT);
 		}
 	}
@@ -103,7 +103,7 @@ public class KVUtils {
 		@Override
 		public void open(Configuration c) {
 			reuse = new KVOperation<>();
-			reuse.setQueryID(index);
+			reuse.setQueryID((short) index);
 			reuse.setType(KVOperationType.UPDATE);
 		}
 	}
@@ -127,7 +127,7 @@ public class KVUtils {
 		@Override
 		public void open(Configuration c) {
 			reuse = new KVOperation<>();
-			reuse.setQueryID(index);
+			reuse.setQueryID((short) index);
 			reuse.setType(KVOperationType.GET);
 		}
 	}
@@ -151,7 +151,7 @@ public class KVUtils {
 		@Override
 		public void open(Configuration c) {
 			reuse = new KVOperation<>();
-			reuse.setQueryID(index);
+			reuse.setQueryID((short) index);
 			reuse.setType(KVOperationType.REMOVE);
 		}
 	}
@@ -177,7 +177,7 @@ public class KVUtils {
 		@Override
 		public void open(Configuration c) {
 			reuse = new KVOperation<>();
-			reuse.setQueryID(index);
+			reuse.setQueryID((short) index);
 			reuse.setType(KVOperationType.SGET);
 		}
 	}
@@ -248,7 +248,7 @@ public class KVUtils {
 		@Override
 		public void open(Configuration conf) {
 			reuse = new KVOperation<>();
-			reuse.setQueryID(index);
+			reuse.setQueryID((short) index);
 			reuse.setType(KVOperationType.MGET);
 			rnd = new Random();
 		}
@@ -284,7 +284,7 @@ public class KVUtils {
 		@Override
 		public void open(Configuration conf) {
 			reuse = new KVOperation<>();
-			reuse.setQueryID(index);
+			reuse.setQueryID((short) index);
 			reuse.setType(KVOperationType.SMGET);
 			rnd = new Random();
 		}
@@ -306,7 +306,7 @@ public class KVUtils {
 
 		@Override
 		public Iterable<String> select(KVOperation<K, V> value) {
-			selected.set(0, ((Integer) value.getQueryID()).toString());
+			selected.set(0, ((Short) value.getQueryID()).toString());
 			return selected;
 		}
 	}

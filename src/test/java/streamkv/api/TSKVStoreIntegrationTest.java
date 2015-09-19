@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -66,22 +67,27 @@ public class TSKVStoreIntegrationTest implements Serializable {
 
 		DataStream<Tuple2<String, Integer>> put2 = env.addSource(
 				new PutSource(
-						Tuple3.of("a", -1, 3L), 
+						Tuple3.of("a", -1, 4L), 
 						Tuple3.of("b", -1, 8L), 
 						Tuple3.of("c", 0, 12L)));
+		
+		DataStream<Tuple2<String, Integer>> update = env.addSource(
+				new PutSource(
+						Tuple3.of("a", 2, 2L), 
+						Tuple3.of("b", 3, 9L))); 
 
 		DataStream<Tuple2<String, Long>> sget = env.addSource(
 				new SGetSource(
-						Tuple2.of("a", 2L), 
+						Tuple2.of("a", 0L), 
 						Tuple2.of("a", 5L), 
-						Tuple2.of("b", 9L), 
+						Tuple2.of("b", 10L), 
 						Tuple2.of("c", 11L)));
 
 		DataStream<Tuple2<String, Long>[]> smget = env.addSource(
 				new SMGetSource(
 						arrayOf(
-								Tuple2.of("a", 2L), 
-								Tuple2.of("b", 2L)), 
+								Tuple2.of("a", 3L), 
+								Tuple2.of("b", 3L)), 
 						arrayOf(
 								Tuple2.of("b", 13L), 
 								Tuple2.of("b", 13L), 
@@ -104,6 +110,8 @@ public class TSKVStoreIntegrationTest implements Serializable {
 		int id1 = store.getWithKeySelector(sget, new MySelector());
 		int id2 = store.multiGetWithKeySelector(smget, new MySelector());
 		int id3 = store.get(get);
+		
+		store.update(update, multiply);
 
 		// Get and collect the outputs
 		KVStoreOutput<String, Integer> storeOutputs = store.getOutputs();
@@ -119,19 +127,19 @@ public class TSKVStoreIntegrationTest implements Serializable {
 		List<Tuple2<Tuple2<String, Long>, Integer>[]> smgetExpectedOutput = new ArrayList<>();
 		Set<Tuple2<String, Integer>> getExpectedOutput = new HashSet<>();
 
-		sgetExpectedOutput.add(Tuple2.of(Tuple2.of("a", 2L), 1));
+		sgetExpectedOutput.add(Tuple2.of(Tuple2.of("a", 0L), (Integer) null));
 		sgetExpectedOutput.add(Tuple2.of(Tuple2.of("a", 5L), -1));
-		sgetExpectedOutput.add(Tuple2.of(Tuple2.of("b", 9L), -1));
+		sgetExpectedOutput.add(Tuple2.of(Tuple2.of("b", 10L), -3));
 		sgetExpectedOutput.add(Tuple2.of(Tuple2.of("c", 11L), (Integer) null));
 
 		smgetExpectedOutput.add(
 				arrayOf(
-						Tuple2.of(Tuple2.of("a", 2L), 1),
-						Tuple2.of(Tuple2.of("b", 2L), (Integer) null)));
+						Tuple2.of(Tuple2.of("a", 3L), 2),
+						Tuple2.of(Tuple2.of("b", 3L), (Integer) null)));
 		smgetExpectedOutput.add(
 				arrayOf(
-						Tuple2.of(Tuple2.of("b", 13L), -1),
-						Tuple2.of(Tuple2.of("b", 13L), -1), 
+						Tuple2.of(Tuple2.of("b", 13L), -3),
+						Tuple2.of(Tuple2.of("b", 13L), -3), 
 						Tuple2.of(Tuple2.of("c", 13L), 0)));
 
 		getExpectedOutput.add(Tuple2.of("a", (Integer) null));
@@ -145,6 +153,16 @@ public class TSKVStoreIntegrationTest implements Serializable {
 		validateSelectorMultigetOutput(smgetExpectedOutput);
 		assertEquals(getExpectedOutput, CollectingSink3.collected);
 	}
+	
+	private static ReduceFunction<Integer> multiply = new ReduceFunction<Integer>() {
+
+		private static final long serialVersionUID = 1L;
+
+		@Override
+		public Integer reduce(Integer value1, Integer value2) throws Exception {
+			return value1*value2;
+		}
+	};
 
 	@SuppressWarnings("unchecked")
 	private void validateSelectorMultigetOutput(List<Tuple2<Tuple2<String, Long>, Integer>[]> expected) {

@@ -44,7 +44,7 @@ public class KVOperation<K, V> implements Serializable {
 
 	// General attributes
 	private KVOperationType type;
-	private int queryID;
+	private short queryID;
 
 	// For standard PUT/GET operations
 	private K key;
@@ -64,7 +64,7 @@ public class KVOperation<K, V> implements Serializable {
 	public KVOperation() {
 	}
 
-	private KVOperation(int queryID, K key, V value, Object record, KVOperationType type) {
+	private KVOperation(short queryID, K key, V value, Object record, KVOperationType type) {
 		this.key = key;
 		this.value = value;
 		this.type = type;
@@ -72,7 +72,7 @@ public class KVOperation<K, V> implements Serializable {
 		this.record = record;
 	}
 
-	private KVOperation(int queryID, K key, V value, Object record, KVOperationType type, short numKeys,
+	private KVOperation(short queryID, K key, V value, Object record, KVOperationType type, short numKeys,
 			long operationID) {
 		this(queryID, key, value, record, type);
 		this.numKeys = numKeys;
@@ -112,11 +112,11 @@ public class KVOperation<K, V> implements Serializable {
 		return type;
 	}
 
-	public void setQueryID(int id) {
+	public void setQueryID(short id) {
 		this.queryID = id;
 	}
 
-	public int getQueryID() {
+	public short getQueryID() {
 		return queryID;
 	}
 
@@ -153,52 +153,52 @@ public class KVOperation<K, V> implements Serializable {
 	}
 
 	public static <K, V> KVOperation<K, V> put(int id, K key, V value) {
-		return new KVOperation<>(id, key, value, null, KVOperationType.PUT);
+		return new KVOperation<>((short) id, key, value, null, KVOperationType.PUT);
 	}
 	
 	public static <K, V> KVOperation<K, V> update(int id, K key, V value) {
-		return new KVOperation<>(id, key, value, null, KVOperationType.UPDATE);
+		return new KVOperation<>((short) id, key, value, null, KVOperationType.UPDATE);
 	}
 
 	public static <K, V> KVOperation<K, V> getRes(int id, K key, V value) {
-		return new KVOperation<>(id, key, value, null, KVOperationType.GETRES);
+		return new KVOperation<>((short) id, key, value, null, KVOperationType.GETRES);
 	}
 
 	public static <K, V> KVOperation<K, V> removeRes(int id, K key, V value) {
-		return new KVOperation<>(id, key, value, null, KVOperationType.REMOVERES);
+		return new KVOperation<>((short) id, key, value, null, KVOperationType.REMOVERES);
 	}
 
 	public static <K, V> KVOperation<K, V> get(int id, K key) {
-		return new KVOperation<>(id, key, null, null, KVOperationType.GET);
+		return new KVOperation<>((short) id, key, null, null, KVOperationType.GET);
 	}
 
 	public static <K, V> KVOperation<K, V> remove(int id, K key) {
-		return new KVOperation<>(id, key, null, null, KVOperationType.REMOVE);
+		return new KVOperation<>((short) id, key, null, null, KVOperationType.REMOVE);
 	}
 
 	public static <K, V> KVOperation<K, V> multiGet(int id, K key, short numKeys, long opID) {
-		return new KVOperation<>(id, key, null, null, KVOperationType.MGET, numKeys, opID);
+		return new KVOperation<>((short) id, key, null, null, KVOperationType.MGET, numKeys, opID);
 	}
 
 	public static <K, V> KVOperation<K, V> selectorMultiGet(int id, Object record, short numKeys, long opID) {
-		return new KVOperation<>(id, null, null, record, KVOperationType.SMGET, numKeys, opID);
+		return new KVOperation<>((short) id, null, null, record, KVOperationType.SMGET, numKeys, opID);
 	}
 
 	public static <K, V> KVOperation<K, V> multiGetRes(int id, K key, V value, short numKeys, long opID) {
-		return new KVOperation<>(id, key, value, null, KVOperationType.MGETRES, numKeys, opID);
+		return new KVOperation<>((short) id, key, value, null, KVOperationType.MGETRES, numKeys, opID);
 	}
 
 	public static <K, V> KVOperation<K, V> selectorMultiGetRes(int id, Object record, V value, short numKeys,
 			long opID) {
-		return new KVOperation<>(id, null, value, record, KVOperationType.SMGETRES, numKeys, opID);
+		return new KVOperation<>((short) id, null, value, record, KVOperationType.SMGETRES, numKeys, opID);
 	}
 
 	public static <K, V> KVOperation<K, V> selectorGet(int id, Object record) {
-		return new KVOperation<>(id, null, null, record, KVOperationType.SGET);
+		return new KVOperation<>((short) id, null, null, record, KVOperationType.SGET);
 	}
 
 	public static <K, V> KVOperation<K, V> selectorGetRes(int id, Object record, V value) {
-		return new KVOperation<>(id, null, value, record, KVOperationType.SGETRES);
+		return new KVOperation<>((short) id, null, value, record, KVOperationType.SGETRES);
 	}
 
 	public String toString() {

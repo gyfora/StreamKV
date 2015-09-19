@@ -182,7 +182,7 @@ public class KVUtilsTest {
 		List<KVOperation<Integer, String>> elements = new ArrayList<>();
 		@SuppressWarnings("rawtypes")
 		TypeSerializer<KVOperation<Integer, String>> s = new KVOperationTypeInfo.KVOpSerializer<Integer, String>(
-				IntSerializer.INSTANCE, null, null, ImmutableMap.of(2,
+				IntSerializer.INSTANCE, null, null, ImmutableMap.of((short) 2,
 						Tuple2.<TypeSerializer, KeySelector> of(StringSerializer.INSTANCE, null)), null);
 
 		@Override

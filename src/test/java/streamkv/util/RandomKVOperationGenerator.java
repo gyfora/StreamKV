@@ -39,9 +39,12 @@ public class RandomKVOperationGenerator {
 
 	private Random rnd = new Random();
 	@SuppressWarnings("rawtypes")
-	public static KVOpSerializer<Integer, Integer> opSerializer = new KVOpSerializer<>(new IntSerializer(),
-			new IntSerializer(), new HashMap<Integer, ReduceFunction<Integer>>(), ImmutableMap.of(0,
-					Tuple2.<TypeSerializer, KeySelector> of(new StringSerializer(), null)), null);
+	public static KVOpSerializer<Integer, Integer> opSerializer = new KVOpSerializer<>(
+			IntSerializer.INSTANCE,
+			IntSerializer.INSTANCE,
+			new HashMap<Short, ReduceFunction<Integer>>(),
+			ImmutableMap.of((short) 0, Tuple2.<TypeSerializer, KeySelector> of(new StringSerializer(), null)),
+			null);
 
 	public KVOperation<Integer, Integer>[] generate(int numOperations) {
 
