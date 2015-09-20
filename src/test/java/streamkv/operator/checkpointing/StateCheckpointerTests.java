@@ -90,7 +90,8 @@ public class StateCheckpointerTests {
 		StateCheckpointer<Tuple2<Integer, Tuple2[]>, byte[]> cp = new MergeStateCheckpointer<>(
 				IntSerializer.INSTANCE, StringSerializer.INSTANCE);
 
-		Tuple2<Integer, Tuple2[]> state = Tuple2.of(5, new Tuple2[] { Tuple2.of(2, "a"), Tuple2.of(4, "b") });
+		Tuple2<Integer, Tuple2[]> state = Tuple2.of(5, new Tuple2[] { Tuple2.of(2, "a"), Tuple2.of(4, "b"),
+				Tuple2.of(5, (String) null), null });
 
 		byte[] serializableState = cp.snapshotState(state, 0, 0);
 		byte[] serialized = InstantiationUtil.serializeObject(serializableState);

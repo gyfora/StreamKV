@@ -40,6 +40,7 @@ import org.apache.flink.core.memory.OutputViewDataOutputStreamWrapper;
  */
 public class KVMapCheckpointer<K, V> implements StateCheckpointer<HashMap<K, V>, byte[]> {
 
+	private static final long serialVersionUID = 1L;
 	private TypeSerializer<K> keySerializer;
 	private TypeSerializer<V> valueSerializer;
 

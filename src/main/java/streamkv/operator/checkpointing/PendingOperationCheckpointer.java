@@ -47,6 +47,7 @@ import streamkv.types.KVOperationTypeInfo.KVOpSerializer;
 public class PendingOperationCheckpointer<K, V> implements
 		StateCheckpointer<TreeMap<Long, List<KVOperation<K, V>>>, byte[]> {
 
+	private static final long serialVersionUID = 1L;
 	private KVOpSerializer<K, V> opSerializer;
 
 	public PendingOperationCheckpointer(KVOpSerializer<K, V> opSerializer) {

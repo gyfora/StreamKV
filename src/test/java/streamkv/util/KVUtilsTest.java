@@ -48,9 +48,15 @@ public class KVUtilsTest {
 		toPut.open(null);
 
 		assertEquals(KVOperation.put(3, 2, "a"), toPut.map(Tuple2.of(2, "a")));
-		assertEquals(KVOperation.<Integer, String> put(3, 1, null), toPut.map(Tuple2.of(1, (String) null)));
+		assertEquals(KVOperation.<Integer, String> put(3, 1, "b"), toPut.map(Tuple2.of(1, "b")));
 		try {
 			toPut.map(Tuple2.of((Integer) null, "a"));
+			fail();
+		} catch (Exception e) {
+			// good
+		}
+		try {
+			toPut.map(Tuple2.of(2, (String) null));
 			fail();
 		} catch (Exception e) {
 			// good
@@ -64,10 +70,15 @@ public class KVUtilsTest {
 		toUpdate.open(null);
 
 		assertEquals(KVOperation.update(3, 2, "a"), toUpdate.map(Tuple2.of(2, "a")));
-		assertEquals(KVOperation.<Integer, String> update(3, 1, null),
-				toUpdate.map(Tuple2.of(1, (String) null)));
+		assertEquals(KVOperation.<Integer, String> update(3, 1, "b"), toUpdate.map(Tuple2.of(1, "b")));
 		try {
 			toUpdate.map(Tuple2.of((Integer) null, "a"));
+			fail();
+		} catch (Exception e) {
+			// good
+		}
+		try {
+			toUpdate.map(Tuple2.of(1, (String) null));
 			fail();
 		} catch (Exception e) {
 			// good

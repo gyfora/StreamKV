@@ -40,6 +40,7 @@ import org.apache.flink.core.memory.OutputViewDataOutputStreamWrapper;
 @SuppressWarnings({ "rawtypes", "unchecked" })
 public class MergeStateCheckpointer<K, V> implements StateCheckpointer<Tuple2<Integer, Tuple2[]>, byte[]> {
 
+	private static final long serialVersionUID = 1L;
 	TypeSerializer keySerializer;
 	TypeSerializer valueSerializer;
 
@@ -57,8 +58,18 @@ public class MergeStateCheckpointer<K, V> implements StateCheckpointer<Tuple2<In
 			out.writeInt(state.f0);
 			out.writeInt(state.f1.length);
 			for (Tuple2 t : state.f1) {
-				keySerializer.serialize(t.f0, out);
-				valueSerializer.serialize(t.f1, out);
+				if (t != null) {
+					out.writeBoolean(true);
+					keySerializer.serialize(t.f0, out);
+					if (t.f1 == null) {
+						out.writeBoolean(false);
+					} else {
+						out.writeBoolean(true);
+						valueSerializer.serialize(t.f1, out);
+					}
+				} else {
+					out.writeBoolean(false);
+				}
 			}
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to write snapshot, e");
@@ -77,7 +88,12 @@ public class MergeStateCheckpointer<K, V> implements StateCheckpointer<Tuple2<In
 			int len = in.readInt();
 			Tuple2[] arr = new Tuple2[len];
 			for (int i = 0; i < len; i++) {
-				arr[i] = Tuple2.of(keySerializer.deserialize(in), valueSerializer.deserialize(in));
+				if (in.readBoolean()) {
+					arr[i] = Tuple2.of(keySerializer.deserialize(in),
+							in.readBoolean() ? valueSerializer.deserialize(in) : null);
+				} else {
+					arr[i] = null;
+				}
 			}
 			outTuple.f1 = arr;
 		} catch (IOException e) {
