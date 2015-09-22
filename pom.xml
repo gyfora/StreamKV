@@ -21,7 +21,7 @@ under the License.
 	<modelVersion>4.0.0</modelVersion>
 	
 	<name>Streaming KV Store</name>
-	<groupId>org.apache.flink</groupId>
+	<groupId>com.github.gyfora</groupId>
 	<artifactId>streamkv</artifactId>
 	<version>0.1-SNAPSHOT</version>
 	<packaging>jar</packaging>
