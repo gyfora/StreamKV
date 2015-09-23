@@ -15,12 +15,21 @@
  * limitations under the License.
  */
 
-package streamkv.api.java;
+package api.scala
+
+import streamkv.api.java.kvstorebuilder.AbstractKVStoreBuilder
+import org.apache.flink.streaming.api.datastream.{ DataStream => JavaStream }
+import org.apache.flink.streaming.api.scala.DataStream
 
 /**
- * Ordering of the operation execution for {@link KVStore}s
- * 
+ * Contains the result stream of a KVStore query
  */
-public enum OperationOrdering {
-	TIMESTAMP, ARRIVALTIME
+class Query[T](qid: Int, storebuilder: AbstractKVStoreBuilder[_, _]) {
+
+  /**
+   * Return the output stream of this query. Once the outputs has been retrieved
+   * from one of the queries of a given KVStore, no more queries can be applied.
+   */
+  def getOutput: DataStream[T] = new DataStream[T](storebuilder.getOutputs().get(qid).asInstanceOf[JavaStream[T]])
+
 }

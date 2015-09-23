@@ -17,8 +17,6 @@
 
 package streamkv.api.java.types;
 
-import static streamkv.api.java.types.KVTypeInfo.copyWithReuse;
-
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -448,6 +446,18 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 		@Override
 		public void copy(DataInputView source, DataOutputView target) throws IOException {
 			throw new UnsupportedOperationException("Not implemented yet");
+		}
+		
+		public static <X> X copyWithReuse(X from, X reuse, TypeSerializer<X> serializer) {
+			if (from == null) {
+				return null;
+			} else {
+				if (reuse == null) {
+					return serializer.copy(from);
+				} else {
+					return serializer.copy(from, reuse);
+				}
+			}
 		}
 
 		private static <X> X deserializeWithReuse(DataInputView source, X reuse, TypeSerializer<X> serializer)

@@ -27,6 +27,7 @@ import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -35,6 +36,7 @@ import org.apache.flink.util.Collector;
 
 import streamkv.api.java.KVStore;
 import streamkv.api.java.types.KVOperation;
+import streamkv.api.java.types.NullHandlerTypeInfo;
 import streamkv.api.java.types.KVOperation.KVOperationType;
 
 import com.google.common.base.Preconditions;
@@ -325,5 +327,10 @@ public class KVUtils {
 			super(mapper);
 			disableInputCopy();
 		}
+	}
+
+	public static <K, V> TypeInformation<Tuple2<K, V>> getKVType(TypeInformation<K> keyType,
+			TypeInformation<V> valueType) {
+		return new TupleTypeInfo<>(keyType, new NullHandlerTypeInfo<>(valueType));
 	}
 }

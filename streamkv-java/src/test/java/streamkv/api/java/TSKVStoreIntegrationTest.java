@@ -100,23 +100,20 @@ public class TSKVStoreIntegrationTest implements Serializable {
 						Tuple2.of("c", 13L)));
 
 		// Create KVStore and apply operations
-		KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.TIME);
+		KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.TIMESTAMP);
 
 		store.put(put1);
 		store.put(put2);
 
-		int id1 = store.getWithKeySelector(sget, new MySelector());
-		int id2 = store.multiGetWithKeySelector(smget, new MySelector());
-		int id3 = store.get(get);
+		Query<Tuple2<Tuple2<String, Long>, Integer>> q1 = store.getWithKeySelector(sget, new MySelector());
+		Query<Tuple2<Tuple2<String, Long>, Integer>[]> q2 = store.multiGetWithKeySelector(smget, new MySelector());
+		Query<Tuple2<String, Integer>> q3 = store.get(get);
 		
 		store.update(update, multiply);
-
-		// Get and collect the outputs
-		KVStoreOutput<String, Integer> storeOutputs = store.getOutputs();
 		
-		storeOutputs.<Tuple2<String, Long>> getKVStream(id1).addSink(new CollectingSink1<Tuple2<Tuple2<String, Long>, Integer>>());
-		storeOutputs.<Tuple2<String, Long>> getKVArrayStream(id2).addSink(new CollectingSink2<Tuple2<Tuple2<String, Long>, Integer>[]>());
-		storeOutputs.<String> getKVStream(id3).addSink(new CollectingSink3<Tuple2<String, Integer>>());
+		q1.getOutput().addSink(new CollectingSink1<Tuple2<Tuple2<String, Long>, Integer>>());
+		q2.getOutput().addSink(new CollectingSink2<Tuple2<Tuple2<String, Long>, Integer>[]>());
+		q3.getOutput().addSink(new CollectingSink3<Tuple2<String, Integer>>());
 
 		env.execute();
 

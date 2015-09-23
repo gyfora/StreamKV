@@ -59,7 +59,7 @@ public class AsyncKVLocalBenchmark extends LocalBenchmark {
 
 	@Override
 	protected KVStore<Integer, Integer> getStore() {
-		return KVStore.withOrdering(OperationOrdering.PARTIAL);
+		return KVStore.withOrdering(OperationOrdering.ARRIVALTIME);
 	}
 
 	public static class PutGenerator extends RichParallelSourceFunction<Tuple2<Integer, Integer>> {

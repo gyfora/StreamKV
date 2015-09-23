@@ -27,8 +27,8 @@ import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.util.Collector;
 
 import streamkv.api.java.KVStore;
-import streamkv.api.java.KVStoreOutput;
 import streamkv.api.java.OperationOrdering;
+import streamkv.api.java.Query;
 
 /**
  * This example shows an implementation of a key value store with operations
@@ -49,14 +49,14 @@ import streamkv.api.java.OperationOrdering;
  * 
  * @see <a href="www.openbsd.org/cgi-bin/man.cgi?query=nc">netcat</a>
  */
-public class KVStreamExample {
+public class StreamKVExample {
 
 	public static void main(String[] args) throws Exception {
 
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
 		// Create a new KV store for holding (String, Integer) pairs
-		KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.PARTIAL);
+		KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.ARRIVALTIME);
 
 		// Create query streams
 		// Put stream expected input format: key,value
@@ -73,16 +73,12 @@ public class KVStreamExample {
 		// Apply the query streams to the KV store and fetch the query IDs for
 		// the get and multiGet queries
 		store.put(putStream);
-		int id1 = store.get(getStream);
-		int id2 = store.multiGet(multiGetStream);
+		Query<Tuple2<String, Integer>> q1 = store.get(getStream);
+		Query<Tuple2<String, Integer>[]> q2 = store.multiGet(multiGetStream);
 
-		// Finalize the KV store operations and get the output
-		KVStoreOutput<String, Integer> storeOutputs = store.getOutputs();
-
-		// Fetch the result streams for the get queries using the assigned IDs
-		// and print the results
-		storeOutputs.getKVStream(id1).print();
-		storeOutputs.<String> getKVArrayStream(id2).addSink(new PrintArray());
+		// Fetch and print the query outputs
+		q1.getOutput().print();
+		q2.getOutput().addSink(new PrintArray());
 
 		// Execute the program
 		env.execute();

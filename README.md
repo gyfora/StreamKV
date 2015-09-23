@@ -6,6 +6,34 @@ Key-value operations (put, get, remove...) and their outputs are represented as 
 
 StreamKV also supports timestamped operations, which will be executed in an ordered manner using Flink's watermark mechanism.
 
+**Scala API**
+
+```scala
+case class Person(id: Int, name: String, age: Int)
+
+// Create a store with arrival time ordering
+val store = KVStore[Int, Person](PARTIAL)
+
+// Fill the store with people
+val persons: DataStream[Person] = …
+store.put(persons.map(p => (p.id, p)))
+
+// Query the KV Store using the IDs
+val ids : DataStream[Int] = …
+val personQuery = store.get(ids)
+
+// Compute the age difference for ID pairs
+val idPairs : DataStream[(Int, Int)] = …
+// Get both ages at the same type using multiGet, we compute the diff later
+val pairQuery = store.multiGet(idPairs.map(pair => Array(pair._1,pair._2)))
+
+// Print the query results
+personQuery.getOutput.print
+pairQuery.getOutput.map(a =>((a(0)._1, a(1)._1), Math.abs(a(0)._2.age - a(1)._2.age))).print
+```
+
+**Java API**
+
 ```java
 // Create a new KV store
 KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.PARTIAL);
@@ -17,15 +45,12 @@ DataStream<String[]> multiGetStream = ...
 
 // Apply the query streams to the KV store
 store.put(putStream);
-int id1 = store.get(getStream);
-int id2 = store.multiGet(multiGetStream);
-
-// Finalise the KV store operations and get the result streams
-KVStoreOutput<String, Integer> storeOutputs = store.getOutputs();
+Query<Tuple2<String, Integer>> q1 = store.get(getStream);
+Query<Tuple2<String, Integer>[]> q2 = store.multiGet(multiGetStream);
 
 // Get and print the result streams
-storeOutputs.getKVStream(id1).print();
-storeOutputs.getKVArrayStream(id2).print();
+q1.getOutput().print();
+q2.getOutput().print();
 ```
 
 **Supported operations**

@@ -110,7 +110,7 @@ public abstract class LocalBenchmark implements Serializable {
 
 	public void runBenchmark(StreamExecutionEnvironment env, KVStore<Integer, Integer> store,
 			String description) throws Exception {
-		store.getOutputs();
+		store.getQueries().get(0).getOutput();
 
 		JobExecutionResult result = env.execute();
 

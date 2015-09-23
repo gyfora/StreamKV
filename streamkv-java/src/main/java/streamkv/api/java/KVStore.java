@@ -17,12 +17,19 @@
 
 package streamkv.api.java;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.IterativeDataStream;
+
+import streamkv.api.java.kvstorebuilder.JavaKVStoreBuilder;
+import streamkv.api.java.kvstorebuilder.AbstractKVStoreBuilder;
+import streamkv.api.java.util.KVUtils;
 
 /**
  * Basic streaming key-value store abstraction. The user can use Flink
@@ -44,18 +51,25 @@ import org.apache.flink.streaming.api.datastream.IterativeDataStream;
  * @param <V>
  *            Type of the values.
  */
-public abstract class KVStore<K, V> {
-	
-	protected KVStore() {
+public class KVStore<K, V> {
+
+	private final AbstractKVStoreBuilder<K, V> storeBuilder;
+	private List<Query<?>> queries = new ArrayList<>();
+
+	private KVStore(OperationOrdering ordering) {
+		this.storeBuilder = new JavaKVStoreBuilder<>(ordering);
 	}
 
 	/**
-	 * Put the elements in the given stream into the key-value store.
+	 * Put the elements from the given tuple stream into the key-value store.
 	 * 
 	 * @param stream
 	 *            Stream of {@link Tuple2}s representing the (K,V) pairs.
 	 */
-	public abstract void put(DataStream<Tuple2<K, V>> stream);
+	public void put(DataStream<Tuple2<K, V>> stream) {
+		int qid = storeBuilder.nextID();
+		storeBuilder.put(stream.map(new KVUtils.ToPut<K, V>(qid)), qid);
+	}
 
 	/**
 	 * Update the value of the provided key by reducing it with the current
@@ -64,27 +78,44 @@ public abstract class KVStore<K, V> {
 	 * key.
 	 * 
 	 * @param stream
+	 *            Stream of {@link Tuple2}s representing the (K,V) pairs.
 	 * @param reducer
+	 *            The reducer used to update the elements.
 	 */
-	public abstract void update(DataStream<Tuple2<K, V>> stream, ReduceFunction<V> reducer);
+	public void update(DataStream<Tuple2<K, V>> stream, ReduceFunction<V> reducer) {
+		int qid = storeBuilder.nextID();
+		storeBuilder.update(stream.map(new KVUtils.ToUpdate<K, V>(qid)), reducer, qid);
+	}
 
 	/**
 	 * Get elements from the store by specifying a stream of keys to retrieve.
 	 * 
 	 * @param stream
 	 *            The stream of keys to get.
-	 * @return The id of the resulting (key, value) stream.
+	 * @return The resulting {@link Query}.
 	 */
-	public abstract int get(DataStream<K> stream);
+	public Query<Tuple2<K, V>> get(DataStream<K> stream) {
+		int qid = storeBuilder.nextID();
+		storeBuilder.get(stream.map(new KVUtils.ToGet<K, V>(qid)), qid);
+		Query<Tuple2<K, V>> q = new Query<Tuple2<K, V>>(qid, storeBuilder);
+		queries.add(q);
+		return q;
+	}
 
 	/**
 	 * Remove elements from the store by specifying a stream of keys to remove.
 	 * 
 	 * @param stream
 	 *            The stream of keys to remove.
-	 * @return The id of the resulting (key, value) stream.
+	 * @return The resulting {@link Query}.
 	 */
-	public abstract int remove(DataStream<K> stream);
+	public Query<Tuple2<K, V>> remove(DataStream<K> stream) {
+		int qid = storeBuilder.nextID();
+		storeBuilder.remove(stream.map(new KVUtils.ToRemove<K, V>(qid)), qid);
+		Query<Tuple2<K, V>> q = new Query<Tuple2<K, V>>(qid, storeBuilder);
+		queries.add(q);
+		return q;
+	}
 
 	/**
 	 * Get elements from the store by specifying a stream of records and a
@@ -95,9 +126,16 @@ public abstract class KVStore<K, V> {
 	 * @param keySelector
 	 *            The {@link KeySelector} used to extract the key for each
 	 *            element.
-	 * @return The id of the resulting (record, value) stream.
+	 * @return The resulting {@link Query}.
 	 */
-	public abstract <X> int getWithKeySelector(DataStream<X> stream, KeySelector<X, K> keySelector);
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	public <X> Query<Tuple2<X, V>> getWithKeySelector(DataStream<X> stream, KeySelector<X, K> keySelector) {
+		int qid = storeBuilder.nextID();
+		storeBuilder.selectorGet(((DataStream) stream).map(new KVUtils.ToSGet<K, V>(qid)), keySelector, qid);
+		Query<Tuple2<X, V>> q = new Query<Tuple2<X, V>>(qid, storeBuilder);
+		queries.add(q);
+		return q;
+	}
 
 	/**
 	 * Get multiple elements from the store at the same time by specifying a
@@ -105,38 +143,46 @@ public abstract class KVStore<K, V> {
 	 * 
 	 * @param stream
 	 *            The stream of key arrays to get.
-	 * @return The id of the resulting (key, value) array stream.
+	 * @return The resulting {@link Query}.
 	 */
-	public abstract int multiGet(DataStream<K[]> stream);
+	public Query<Tuple2<K, V>[]> multiGet(DataStream<K[]> stream) {
+		int qid = storeBuilder.nextID();
+		storeBuilder.multiGet(stream.flatMap(new KVUtils.ToMGet<K, V>(qid)), qid);
+		Query<Tuple2<K, V>[]> q = new Query<Tuple2<K, V>[]>(qid, storeBuilder);
+		queries.add(q);
+		return q;
+	}
 
 	/**
 	 * Get multiple elements from the store at the same time by specifying a
 	 * stream of object arrays and a {@link KeySelector} for extracting the keys
-	 * from the object..
+	 * from the objects.
 	 * 
 	 * @param stream
 	 *            The stream of object arrays.
 	 * @param keySelector
 	 *            The {@link KeySelector} used to extract the key for each
 	 *            element.
-	 * @return The id of the resulting (record, value) array stream.
+	 * @return The resulting {@link Query}.
 	 */
-	public abstract <X> int multiGetWithKeySelector(DataStream<X[]> stream, KeySelector<X, K> keySelector);
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	public <X> Query<Tuple2<X, V>[]> multiGetWithKeySelector(DataStream<X[]> stream,
+			KeySelector<X, K> keySelector) {
+		int qid = storeBuilder.nextID();
+		storeBuilder.selectorMultiGet(((DataStream) stream).flatMap(new KVUtils.ToSMGet<K, V>(qid)),
+				keySelector, qid);
+		Query<Tuple2<X, V>[]> q = new Query<Tuple2<X, V>[]>(qid, storeBuilder);
+		queries.add(q);
+		return q;
+	}
 
 	/**
-	 * Finalize the operations applied on this {@link KVStore} and get the
-	 * resulting streams. Each result stream can be retrieved from the returned
-	 * {@link KVStoreOutput} by calling the respective methods.
+	 * Returns a list of all {@link Query}s applied on this store.
 	 * 
-	 * <p>
-	 * After calling this method, no further operations can be applied on the
-	 * {@link KVStore} in order to avoid creating circular dependencies in the
-	 * resulting program. If such logic is necessary, it needs to be handled
-	 * manually using {@link IterativeDataStream}.
-	 * 
-	 * @return The {@link KVStoreOutput} for this store.
 	 */
-	public abstract KVStoreOutput<K, V> getOutputs();
+	public List<Query<?>> getQueries() {
+		return queries;
+	}
 
 	/**
 	 * Creates a new {@link KVStore} with the given {@link OperationOrdering}
@@ -144,11 +190,11 @@ public abstract class KVStore<K, V> {
 	 * <br>
 	 * Currently there are 2 supported ordering semantics:
 	 * <ul>
-	 * <li><b>PARTIAL</b> : All operations are executed in arrival order
+	 * <li><b>ARRIVALTIME</b> : All operations are executed in arrival order
 	 * (governed by the standard Flink partial ordering guarantees). While this
 	 * implementation provides maximal performance it does not provide any
 	 * deterministic processing guarantee.</li>
-	 * <li><b>TIME</b> : All operations are executed in time order. Time can be
+	 * <li><b>TIMESTAMP</b> : All operations are executed in time order. Time can be
 	 * ingress time by default or custom event timestamps and watermarks must be
 	 * provided by the source implementations. There is no ordering guarantee
 	 * among elements with the same timestamps.
@@ -170,10 +216,6 @@ public abstract class KVStore<K, V> {
 	 * @return A new {@link KVStore} instance.
 	 */
 	public static <K, V> KVStore<K, V> withOrdering(OperationOrdering ordering) {
-		if (ordering == OperationOrdering.TIME) {
-			return new TimestampedKVStore<>();
-		} else {
-			return new AsyncKVStore<>();
-		}
+		return new KVStore<K, V>(ordering);
 	}
 }

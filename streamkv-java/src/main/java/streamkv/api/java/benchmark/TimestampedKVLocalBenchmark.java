@@ -63,7 +63,7 @@ public class TimestampedKVLocalBenchmark extends LocalBenchmark {
 
 	@Override
 	protected KVStore<Integer, Integer> getStore() {
-		return KVStore.withOrdering(OperationOrdering.TIME);
+		return KVStore.withOrdering(OperationOrdering.TIMESTAMP);
 	}
 
 	@Override

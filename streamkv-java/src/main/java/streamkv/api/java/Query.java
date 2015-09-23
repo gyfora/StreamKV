@@ -17,10 +17,37 @@
 
 package streamkv.api.java;
 
+import org.apache.flink.streaming.api.datastream.DataStream;
+
+import streamkv.api.java.kvstorebuilder.AbstractKVStoreBuilder;
+
 /**
- * Ordering of the operation execution for {@link KVStore}s
+ * Contains the result stream of a {@link KVStore} query.
  * 
+ * @param <T>
+ *            The type of the output {@link DataStream}.
  */
-public enum OperationOrdering {
-	TIMESTAMP, ARRIVALTIME
+public class Query<T> {
+
+	private int id;
+	private AbstractKVStoreBuilder<?, ?> storebuilder;
+
+	public Query(int id, AbstractKVStoreBuilder<?, ?> storebuilder) {
+		super();
+		this.id = id;
+		this.storebuilder = storebuilder;
+	}
+
+	/**
+	 * Returns the output stream of this {@link Query}.
+	 * 
+	 * <p>
+	 * Once the output has been retrieved from one of the queries of a given
+	 * {@link KVStore}, no more queries can be applied.
+	 * </p>
+	 */
+	@SuppressWarnings("unchecked")
+	public DataStream<T> getOutput() {
+		return storebuilder.getOutputs().get(id);
+	}
 }
