@@ -67,27 +67,9 @@ public class NullHandlerTypeInfo<T> extends TypeInformation<T> {
 		return result;
 	}
 
-	@SuppressWarnings("rawtypes")
 	@Override
 	public boolean equals(Object obj) {
-		if (this == obj) {
-			return true;
-		}
-		if (obj == null) {
-			return false;
-		}
-		if (!(obj instanceof NullHandlerTypeInfo)) {
-			return false;
-		}
-		NullHandlerTypeInfo other = (NullHandlerTypeInfo) obj;
-		if (typeInfo == null) {
-			if (other.typeInfo != null) {
-				return false;
-			}
-		} else if (!typeInfo.equals(other.typeInfo)) {
-			return false;
-		}
-		return true;
+		return typeInfo.equals(obj);
 	}
 
 }

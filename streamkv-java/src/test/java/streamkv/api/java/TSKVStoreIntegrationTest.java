@@ -206,7 +206,7 @@ public class TSKVStoreIntegrationTest implements Serializable {
 		}
 	}
 
-	public static class CollectingSink1<T> implements SinkFunction<T> {
+	private static class CollectingSink1<T> implements SinkFunction<T> {
 		private static final long serialVersionUID = 1L;
 
 		public static Set<Object> collected = Collections
@@ -219,7 +219,7 @@ public class TSKVStoreIntegrationTest implements Serializable {
 
 	}
 
-	public static class CollectingSink2<T> implements SinkFunction<T> {
+	private static class CollectingSink2<T> implements SinkFunction<T> {
 		private static final long serialVersionUID = 1L;
 
 		@SuppressWarnings("rawtypes")
@@ -233,7 +233,7 @@ public class TSKVStoreIntegrationTest implements Serializable {
 
 	}
 
-	public static class CollectingSink3<T> implements SinkFunction<T> {
+	private static class CollectingSink3<T> implements SinkFunction<T> {
 		private static final long serialVersionUID = 1L;
 
 		public static Set<Object> collected = Collections
