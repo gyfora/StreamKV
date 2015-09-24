@@ -39,7 +39,7 @@ trait KVStore[K, V] {
   /**
    * Update the current value for the given key-value pair, by reducing the old and new value with the reduce function.
    */
-  def update(stream: DataStream[(K, V)], reducer: (V, V) => V)
+  def update(stream: DataStream[(K, V)])(reducer: (V, V) => V)
   /**
    * Get elements from the KVStore by key.
    */
@@ -55,11 +55,11 @@ trait KVStore[K, V] {
   /**
    * Get elements from the KVStore by passing an object and a function that extracts the key from the object.
    */
-  def getWithKeySelector[R](stream: DataStream[R], key: R => K): Query[(R, V)]
+  def getWithKeySelector[R](stream: DataStream[R])(key: R => K): Query[(R, V)]
   /**
    * Get multiple elements at the same type using an array of objects and a custom key extractor.
    */
-  def multiGetWithKeySelector[R](stream: DataStream[Array[R]], key: R => K): Query[Array[(R, V)]]
+  def multiGetWithKeySelector[R](stream: DataStream[Array[R]])(key: R => K): Query[Array[(R, V)]]
   /**
    * Return all the queries that result in an output stream.
    */
@@ -76,7 +76,7 @@ class ScalaKVStore[K: TypeInformation: ClassTag, V: TypeInformation: ClassTag](o
       .getJavaStream.asInstanceOf[SingleOutputStreamOperator[KVOperation[K, V], _]]
     storeBuilder.put(opstream, qid)
   }
-  def update(stream: DataStream[(K, V)], reduceFun: (V, V) => V) = {
+  def update(stream: DataStream[(K, V)])(reduceFun: (V, V) => V) = {
     val qid = storeBuilder.nextID
     val opstream = stream.map(in => KVOperation.update(qid, in._1, in._2))
       .getJavaStream.asInstanceOf[SingleOutputStreamOperator[KVOperation[K, V], _]]
@@ -115,7 +115,7 @@ class ScalaKVStore[K: TypeInformation: ClassTag, V: TypeInformation: ClassTag](o
     queries += q
     q
   }
-  def getWithKeySelector[R](stream: DataStream[R], key: R => K) = {
+  def getWithKeySelector[R](stream: DataStream[R])(key: R => K) = {
     val qid = storeBuilder.nextID
     val opstream = stream.map(in => KVOperation.selectorGet(qid, in))
       .getJavaStream.asInstanceOf[SingleOutputStreamOperator[KVOperation[K, V], _]]
@@ -128,7 +128,7 @@ class ScalaKVStore[K: TypeInformation: ClassTag, V: TypeInformation: ClassTag](o
     q
   }
 
-  def multiGetWithKeySelector[R](stream: DataStream[Array[R]], key: R => K) = {
+  def multiGetWithKeySelector[R](stream: DataStream[Array[R]])(key: R => K) = {
     val qid = storeBuilder.nextID
     val opstream = stream.flatMap(in => {
       val opID = Random.nextLong

@@ -18,38 +18,65 @@
 package api.scala.example
 
 import org.apache.flink.streaming.api.scala._
-
 import api.scala.KVStore
 import api.scala.Query
 import streamkv.api.java.OperationOrdering.ARRIVALTIME
+import java.util.Arrays
 
 object StreamKVExample {
-
-  case class Person(id: Int, name: String, age: Int)
 
   def main(args: Array[String]): Unit = {
 
     val env = StreamExecutionEnvironment.getExecutionEnvironment
-    val store = KVStore[Int, Person](ARRIVALTIME)
-    
-    val persons: DataStream[Person] = env.socketTextStream("localhost", 9999).flatMap((in, c) => {
-      val split = in.split(",")
+    env.enableCheckpointing(1000)
+
+    // Create a store for account information (name, balance)
+    val store = KVStore[String, Double](ARRIVALTIME)
+
+    // Expected input:
+    // "PUT name, balance"
+    // "GET name"
+    // "MGET name,name,..."
+    // "TRANSFER from, to, amount"
+    val inputStream: DataStream[(String, String)] = env.socketTextStream("localhost", 9999).flatMap((in, c) => {
+      if (in == "fail") { throw new RuntimeException("Failed") }
+      val split = in.split(" ")
       try {
-        c.collect(Person(split(0).toInt, split(1), split(2).toInt))
+        c.collect((split(0).toUpperCase(), split.slice(1, split.length).fold("")(_ + _)))
       } catch {
-        case e: Exception => System.err.println("Parsing error: " + in);
+        case e: Exception => System.err.println("Parsing error: " + in)
       }
     })
 
-    store.put(persons.map(p => (p.id, p)))
+    // Read the initial balance as a stream
+    val initialBalance = inputStream.filter(_._1 == "PUT").map(x => {
+      val split = x._2.split(",")
+      (split(0), split(1).toDouble)
+    })
 
-    val personQuery = store.get(env.socketTextStream("localhost", 9998).map(_.toInt))
-    val personArrayQuery = store.multiGet(env.socketTextStream("localhost", 9997).map(_.split(",").map(_.toInt)))
+    // Feed the balance stream into the store
+    store.put(initialBalance)
 
-    personQuery.getOutput.print
-    personArrayQuery.getOutput.filter(_.length == 2).map(a => ((a(0)._1, a(1)._1), Math.abs(a(0)._2.age - a(1)._2.age))).print
+    // At any time query the balance by name
+    val balanceQ = store.get(inputStream.filter(_._1 == "GET").map(_._2))
+
+    // At any time query the balance for multiple people
+    val totalBalanceQ = store.multiGet(inputStream.filter(_._1 == "MGET").map(_._2.split(",")))
+
+    // Transfer : (from, to, amount)
+    val transferStream: DataStream[(String, String, Double)] = inputStream.filter(_._1 == "TRANSFER").map(x => {
+      val split = x._2.split(",")
+      (split(0), split(1), split(2).toDouble)
+    })
+
+    // Apply transfer by subtracting from the sender and adding to the receiver
+    store.update(transferStream.flatMap(x => Array((x._1, -1 * x._3), (x._2, x._3))))((b1, b2) => b1 + b2)
+
+    // Print the query outputs
+    balanceQ.getOutput.print
+    totalBalanceQ.getOutput.addSink(x => println(x.mkString(",")))
+
     env.execute
-
   }
 
 }

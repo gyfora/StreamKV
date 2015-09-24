@@ -9,34 +9,37 @@ StreamKV also supports timestamped operations, which will be executed in an orde
 **Scala API**
 
 ```scala
-case class Person(id: Int, name: String, age: Int)
+// Create a store for account information (name, balance)
+val store = KVStore[String, Double](ARRIVALTIME)
 
-// Create a store with arrival time ordering
-val store = KVStore[Int, Person](PARTIAL)
+// Feed the balance stream into the store
+val initialBalance : DataStream[(String,Double)] = …
+store.put(initialBalance)
 
-// Fill the store with people
-val persons: DataStream[Person] = …
-store.put(persons.map(p => (p.id, p)))
+// At any time query the balance by name
+val names : DataStream[String] = …
+val balanceQ = store.get(names)
 
-// Query the KV Store using the IDs
-val ids : DataStream[Int] = …
-val personQuery = store.get(ids)
+// At any time query the balance for multiple people
+val nameArrays : DataStream[Array[String]] = …
+val totalBalanceQ = store.multiGet(nameArrays)
 
-// Compute the age difference for ID pairs
-val idPairs : DataStream[(Int, Int)] = …
-// Get both ages at the same type using multiGet, we compute the diff later
-val pairQuery = store.multiGet(idPairs.map(pair => Array(pair._1,pair._2)))
+// Transfer : (from, to, amount)
+val transferStream: DataStream[(String, String, Double)] = …
 
-// Print the query results
-personQuery.getOutput.print
-pairQuery.getOutput.map(a =>((a(0)._1, a(1)._1), Math.abs(a(0)._2.age - a(1)._2.age))).print
+// Apply transfer by subtracting from the sender and adding to the receiver
+store.update(transferStream.flatMap(x => Array((x._1, -1 * x._3), (x._2, x._3))))((b1, b2) => b1 + b2)
+
+// Print the query outputs
+balanceQ.getOutput.print
+totalBalanceQ.getOutput.addSink(x => println(x.mkString(",")))
 ```
 
 **Java API**
 
 ```java
 // Create a new KV store
-KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.PARTIAL);
+KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.ARRIVALTIME);
 
 // Create query streams
 DataStream<Tuple2<String, Integer>> putStream = ...
