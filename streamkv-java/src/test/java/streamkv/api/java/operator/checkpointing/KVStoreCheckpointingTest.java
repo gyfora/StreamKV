@@ -48,7 +48,7 @@ import org.junit.Test;
 import streamkv.api.java.KVStore;
 import streamkv.api.java.OperationOrdering;
 
-public class KVStoreCheckpointingITCase {
+public class KVStoreCheckpointingTest {
 
 	final static int NUM_KEYS = 25;
 	static List<Tuple3<String, Integer, Integer>> input;
