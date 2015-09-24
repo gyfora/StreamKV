@@ -18,10 +18,7 @@ package streamkv.api.scala.example
 
 import org.apache.flink.streaming.api.scala._
 import streamkv.api.scala.KVStore
-import streamkv.api.scala.scala.KVStore
-import streamkv.api.scala.scala.Query
 import streamkv.api.java.OperationOrdering.ARRIVALTIME
-import java.util.Arrays
 
 object StreamKVExample {
 

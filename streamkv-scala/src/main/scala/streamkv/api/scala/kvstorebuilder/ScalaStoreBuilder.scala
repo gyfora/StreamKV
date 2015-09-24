@@ -16,28 +16,25 @@
 
 package streamkv.api.scala.kvstorebuilder
 
-import scala.Array.canBuildFrom
-import scala.collection.immutable.List.apply
-import scala.reflect.ClassTag
 import org.apache.flink.api.common.ExecutionConfig
 import org.apache.flink.api.common.functions.MapFunction
 import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.api.common.typeutils.TypeSerializer
 import org.apache.flink.api.java.tuple.Tuple2
-import org.apache.flink.api.scala.typeutils.CaseClassSerializer
-import org.apache.flink.api.scala.typeutils.CaseClassTypeInfo
-import org.apache.flink.streaming.api.datastream.DataStream
-import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator
+import org.apache.flink.api.java.typeutils.ObjectArrayTypeInfo
+import org.apache.flink.api.scala.typeutils.{CaseClassSerializer, CaseClassTypeInfo}
+import org.apache.flink.streaming.api.datastream.{DataStream, SingleOutputStreamOperator}
 import org.apache.flink.streaming.api.scala._
 import streamkv.api.java.OperationOrdering
 import streamkv.api.java.kvstorebuilder.AbstractKVStoreBuilder
 import streamkv.api.java.operator.MultiGetMerger
 import streamkv.api.java.types._
 import streamkv.api.java.util.KVUtils
-import org.apache.flink.api.java.typeutils.runtime.ValueSerializer
-import org.apache.flink.api.java.typeutils.ObjectArrayTypeInfo
 
-class ScalaStoreBuilder[K: TypeInformation: ClassTag, V: TypeInformation: ClassTag](ordering: OperationOrdering) extends AbstractKVStoreBuilder[K, V](ordering) {
+import scala.Array.canBuildFrom
+import scala.reflect.ClassTag
+
+class ScalaStoreBuilder[K: TypeInformation: ClassTag, V: TypeInformation: ClassTag](ordering: OperationOrdering)
+  extends AbstractKVStoreBuilder[K, V](ordering) {
 
   val kvType = implicitly[TypeInformation[(K, V)]]
   var kvOpType: KVOperationTypeInfo[K, V] = null
@@ -82,7 +79,8 @@ class ScalaStoreBuilder[K: TypeInformation: ClassTag, V: TypeInformation: ClassT
     val valueType = getKVOperationType().valueType
     val componentType = getComponentType(recordType).asInstanceOf[TypeInformation[Any]]
 
-    val merger = stream.flatMap(new MultiGetMerger[K, V](componentType.createSerializer(getConfig()), valueType.createSerializer(getConfig())))
+    val merger = stream.flatMap(new MultiGetMerger[K, V]
+      (componentType.createSerializer(getConfig()), valueType.createSerializer(getConfig())))
       .asInstanceOf[SingleOutputStreamOperator[Array[Tuple2[Any, V]], _]]
 
     val tupleStream = merger.returns(ObjectArrayTypeInfo.getInfoFor(
@@ -120,5 +118,4 @@ class ScalaStoreBuilder[K: TypeInformation: ClassTag, V: TypeInformation: ClassT
         }
     }
   }
-
 }

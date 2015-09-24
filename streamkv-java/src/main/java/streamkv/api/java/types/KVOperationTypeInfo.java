@@ -173,17 +173,25 @@ public class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation<K, V>
 
 		@Override
 		public boolean equals(Object o) {
-			if (this == o) return true;
-			if (o == null || getClass() != o.getClass()) return false;
+			if (this == o) {
+				return true;
+			}
+			if (o == null || getClass() != o.getClass()) {
+				return false;
+			}
 
 			KVOpSerializer<?, ?> that = (KVOpSerializer<?, ?>) o;
 
-			if (!keySerializer.equals(that.keySerializer)) return false;
-			if (valueSerializer != null ? !valueSerializer.equals(that.valueSerializer) : that.valueSerializer != null)
+			if (!keySerializer.equals(that.keySerializer)) {
 				return false;
-			if (selectors != null ? !selectors.equals(that.selectors) : that.selectors != null) return false;
+			}
+			if (valueSerializer != null ? !valueSerializer.equals(that.valueSerializer) : that.valueSerializer != null) {
+				return false;
+			}
+			if (selectors != null ? !selectors.equals(that.selectors) : that.selectors != null) {
+				return false;
+			}
 			return !(reducers != null ? !reducers.equals(that.reducers) : that.reducers != null);
-
 		}
 
 		@Override

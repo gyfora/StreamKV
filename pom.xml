@@ -233,6 +233,7 @@ limitations under the License.
 				</executions>
 			</plugin>
 
+			<!-- Licensing information check -->
 			<plugin>
 				<groupId>org.apache.rat</groupId>
 				<artifactId>apache-rat-plugin</artifactId>
@@ -259,7 +260,30 @@ limitations under the License.
 						<exclude>**/*.iml</exclude>
 						<!-- Generated content -->
 						<exclude>**/target/**</exclude>
+						<exclude>**/scalastyle-output.xml</exclude>
 					</excludes>
+				</configuration>
+			</plugin>
+
+			<!-- Code style checks -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-checkstyle-plugin</artifactId>
+				<version>2.16</version>
+				<executions>
+					<execution>
+						<id>validate</id>
+						<phase>validate</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<suppressionsLocation>/tools/maven/suppressions.xml</suppressionsLocation>
+					<suppressionsFileExpression>/checkstyle.suppressions.file</suppressionsFileExpression>
+					<configLocation>/tools/maven/checkstyle.xml</configLocation>
+					<logViolationsToConsole>true</logViolationsToConsole>
 				</configuration>
 			</plugin>
 

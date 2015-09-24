@@ -17,18 +17,14 @@
 package streamkv.api.scala
 
 import org.apache.flink.streaming.api.scala.DataStream
-import streamkv.api.java.{ KVStore => JavaStore }
 import streamkv.api.java.OperationOrdering
 import streamkv.api.java.types.KVOperation
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator
 import org.apache.flink.api.common.functions.ReduceFunction
-import scala.util.Random
 import org.apache.flink.api.java.functions.KeySelector
-import scala.reflect.ClassTag
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import streamkv.api.scala.kvstorebuilder.ScalaStoreBuilder
-import streamkv.api.scala.scala.kvstorebuilder.ScalaStoreBuilder
 import scala.collection.mutable.MutableList
 
 import _root_.scala.reflect.ClassTag
@@ -69,7 +65,9 @@ trait KVStore[K, V] {
   def getQueries: List[Query[_]]
 }
 
-class ScalaKVStore[K: TypeInformation: ClassTag, V: TypeInformation: ClassTag](ordering: OperationOrdering) extends KVStore[K, V] {
+class ScalaKVStore[K: TypeInformation: ClassTag, V: TypeInformation: ClassTag](ordering: OperationOrdering)
+  extends KVStore[K, V] {
+
   val storeBuilder = new ScalaStoreBuilder[K, V](ordering)
   val queries = new MutableList[Query[_]]
 
@@ -151,5 +149,7 @@ class ScalaKVStore[K: TypeInformation: ClassTag, V: TypeInformation: ClassTag](o
 }
 
 object KVStore {
-  def apply[K: TypeInformation: ClassTag, V: TypeInformation: ClassTag](ordering: OperationOrdering): KVStore[K, V] = new ScalaKVStore[K, V](ordering)
+  def apply[K: TypeInformation: ClassTag, V: TypeInformation: ClassTag](ordering: OperationOrdering): KVStore[K, V] = {
+    new ScalaKVStore[K, V](ordering)
+  }
 }
