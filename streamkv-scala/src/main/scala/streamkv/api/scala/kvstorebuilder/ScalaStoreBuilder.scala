@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package api.scala.kvstorebuilder
+package streamkv.api.scala.kvstorebuilder
 
 import scala.Array.canBuildFrom
 import scala.collection.immutable.List.apply

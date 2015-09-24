@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package api.scala
+package streamkv.api.scala
 
 import org.apache.flink.streaming.api.scala.DataStream
 import streamkv.api.java.{ KVStore => JavaStore }
@@ -27,8 +27,12 @@ import scala.util.Random
 import org.apache.flink.api.java.functions.KeySelector
 import scala.reflect.ClassTag
 import org.apache.flink.api.common.typeinfo.TypeInformation
-import api.scala.kvstorebuilder.ScalaStoreBuilder
+import streamkv.api.scala.kvstorebuilder.ScalaStoreBuilder
+import streamkv.api.scala.scala.kvstorebuilder.ScalaStoreBuilder
 import scala.collection.mutable.MutableList
+
+import _root_.scala.reflect.ClassTag
+import _root_.scala.util.Random
 
 trait KVStore[K, V] {
   /**

@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-package api.scala.example
+package streamkv.api.scala.example
 
 import org.apache.flink.streaming.api.scala._
-import api.scala.KVStore
-import api.scala.Query
+import streamkv.api.scala.KVStore
+import streamkv.api.scala.scala.KVStore
+import streamkv.api.scala.scala.Query
 import streamkv.api.java.OperationOrdering.ARRIVALTIME
 import java.util.Arrays
 

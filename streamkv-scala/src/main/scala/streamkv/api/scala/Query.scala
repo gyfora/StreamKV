@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package api.scala
+package streamkv.api.scala
 
 import streamkv.api.java.kvstorebuilder.AbstractKVStoreBuilder
 import org.apache.flink.streaming.api.datastream.{ DataStream => JavaStream }
