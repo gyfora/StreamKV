@@ -25,6 +25,7 @@ limitations under the License.
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<flinkVersion>0.10-SNAPSHOT</flinkVersion>
 	</properties>
 	
 	<modules>
@@ -51,13 +52,13 @@ limitations under the License.
 		<dependency>
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-streaming-core</artifactId>
-			<version>0.10-SNAPSHOT</version>
+			<version>${flinkVersion}</version>
 		</dependency>
 		
 		<dependency>
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-streaming-core</artifactId>
-			<version>0.10-SNAPSHOT</version>
+			<version>${flinkVersion}</version>
 			<type>test-jar</type>
 			<scope>test</scope>
 		</dependency>
@@ -65,7 +66,7 @@ limitations under the License.
 		<dependency>
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-clients</artifactId>
-			<version>0.10-SNAPSHOT</version>
+			<version>${flinkVersion}</version>
 		</dependency>
 	  
 		<dependency>
@@ -201,7 +202,7 @@ limitations under the License.
 							<transformers>
 								<!-- add Main-Class to manifest file -->
 								<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-									<mainClass>streamkv.Job</mainClass>
+									<mainClass>streamkv.api.scala.example.StreamKVExample</mainClass>
 								</transformer>
 							</transformers>
 							<createDependencyReducedPom>false</createDependencyReducedPom>
@@ -265,7 +266,7 @@ limitations under the License.
 				</configuration>
 			</plugin>
 
-			<!-- Code style checks -->
+			<!-- Java style -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-checkstyle-plugin</artifactId>
