@@ -18,9 +18,11 @@ package streamkv.api.java.operator.checkpointing;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
+import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -31,7 +33,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.state.OperatorState;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -47,11 +48,13 @@ import org.junit.Test;
 
 import streamkv.api.java.KVStore;
 import streamkv.api.java.OperationOrdering;
+import streamkv.api.java.Query;
 
 public class KVStoreCheckpointingTest {
 
 	final static int NUM_KEYS = 25;
-	static List<Tuple3<String, Integer, Integer>> input;
+	static List<Tuple2<String, Integer>> input;
+	static List<Tuple2<String, Integer>[]> mgetInput;
 	protected static final int NUM_TASK_MANAGERS = 2;
 	protected static final int NUM_TASK_SLOTS = 3;
 	protected static final int PARALLELISM = NUM_TASK_MANAGERS * NUM_TASK_SLOTS;
@@ -65,20 +68,29 @@ public class KVStoreCheckpointingTest {
 		env.getConfig().enableTimestamps();
 
 		input = generateInputs(env.getParallelism() * 10000);
+		mgetInput = generateKVArrays(input);
 
 		DataStream<Tuple2<String, Integer>> putSource = env.addSource(new PutSource(input));
 		DataStream<String> getSource = env.addSource(new GetSource(input));
+		DataStream<String[]> mGetSource = env.addSource(new MGetSource(toMget(mgetInput)));
 
 		KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.TIMESTAMP);
 
 		store.put(putSource);
 
-		store.get(getSource).getOutput().map(new OnceFailingMapper())
-				.addSink(new CollectingSink<Tuple2<String, Integer>>());
+		Query<Tuple2<String, Integer>> getQ = store.get(getSource);
+		Query<Tuple2<String, Integer>[]> mgetQ = store.multiGet(mGetSource);
+
+		getQ.getOutput().map(new OnceFailingMapper()).addSink(new CollectingSink<Tuple2<String, Integer>>());
+
+		mgetQ.getOutput().addSink(new CollectingSink2<Tuple2<String, Integer>[]>());
 	}
 
 	public void postSubmit() {
-		assertEquals(toOutputSet(input), CollectingSink.collected);
+		assertTrue(OnceFailingMapper.failed);
+		assertEquals(new HashSet<>(input), CollectingSink.collected);
+		assertEquals(toSetOfSets(mgetInput), toSetOfSets(CollectingSink2.collected));
+
 	}
 
 	@BeforeClass
@@ -130,15 +142,20 @@ public class KVStoreCheckpointingTest {
 		}
 	}
 
-	private Set<Tuple2<String, Integer>> toOutputSet(List<Tuple3<String, Integer, Integer>> input) {
-		Set<Tuple2<String, Integer>> out = new HashSet<>();
-		for (Tuple3<String, Integer, Integer> i : input) {
-			out.add(Tuple2.of(i.f0, i.f1));
+	private static class CollectingSink<T> implements SinkFunction<T> {
+		private static final long serialVersionUID = 1L;
+
+		public static Set<Object> collected = Collections
+				.newSetFromMap(new ConcurrentHashMap<Object, Boolean>());
+
+		@Override
+		public void invoke(T value) throws Exception {
+			collected.add(value);
 		}
-		return out;
+
 	}
 
-	private static class CollectingSink<T> implements SinkFunction<T> {
+	private static class CollectingSink2<T> implements SinkFunction<T> {
 		private static final long serialVersionUID = 1L;
 
 		public static Set<Object> collected = Collections
@@ -170,27 +187,73 @@ public class KVStoreCheckpointingTest {
 
 	}
 
-	private List<Tuple3<String, Integer, Integer>> generateInputs(int len) {
-		List<Tuple3<String, Integer, Integer>> output = new ArrayList<>();
+	private List<Tuple2<String, Integer>> generateInputs(int len) {
+		List<Tuple2<String, Integer>> output = new ArrayList<>();
 		Random rnd = new Random();
 
 		for (int i = 0; i < len; i++) {
-			output.add(Tuple3.of("" + rnd.nextInt(NUM_KEYS), rnd.nextInt(), 2 * i));
+			output.add(Tuple2.of("" + rnd.nextInt(NUM_KEYS), rnd.nextInt()));
 		}
 
 		return output;
+	}
+
+	@SuppressWarnings("unchecked")
+	private List<Tuple2<String, Integer>[]> generateKVArrays(List<Tuple2<String, Integer>> inputs) {
+		List<Tuple2<String, Integer>[]> out = new ArrayList<>();
+
+		for (int i = 0; i < inputs.size(); i++) {
+			int nk = rnd.nextInt(i < 10 ? i + 1 : 10) + 1;
+			List<Tuple2<String, Integer>> kvs = new ArrayList<>();
+			Set<String> keys = new HashSet<>();
+			for (int j = 0; j < nk; j++) {
+				Tuple2<String, Integer> candidate = inputs.get(i - j);
+				if (!keys.contains(candidate.f0)) {
+					kvs.add(candidate);
+					keys.add(candidate.f0);
+				}
+			}
+			out.add(kvs.toArray(new Tuple2[kvs.size()]));
+		}
+
+		return out;
+	}
+
+	private List<String[]> toMget(List<Tuple2<String, Integer>[]> input) {
+		List<String[]> out = new ArrayList<>();
+		for (Tuple2<String, Integer>[] arr : input) {
+			String[] outArr = new String[arr.length];
+			for (int i = 0; i < arr.length; i++) {
+				outArr[i] = arr[i].f0;
+			}
+			out.add(outArr);
+		}
+		return out;
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	private Set<Set<Tuple2<String, Integer>>> toSetOfSets(Collection c) {
+		Set<Set<Tuple2<String, Integer>>> out = new HashSet<>();
+		for (Object o : c) {
+			Set<Tuple2<String, Integer>> kvSet = new HashSet<>();
+			for (Tuple2<String, Integer> t : (Tuple2<String, Integer>[]) o) {
+				kvSet.add(t);
+			}
+			out.add(kvSet);
+		}
+		return out;
 	}
 
 	public static class PutSource extends RichParallelSourceFunction<Tuple2<String, Integer>> implements
 			EventTimeSourceFunction<Tuple2<String, Integer>> {
 		private static final long serialVersionUID = 1L;
 
-		private List<Tuple3<String, Integer, Integer>> inputs;
+		private List<Tuple2<String, Integer>> inputs;
 		private OperatorState<Integer> offset;
 
 		private volatile boolean isRunning = false;
 
-		public PutSource(List<Tuple3<String, Integer, Integer>> inputs) {
+		public PutSource(List<Tuple2<String, Integer>> inputs) {
 			this.inputs = inputs;
 		}
 
@@ -199,9 +262,13 @@ public class KVStoreCheckpointingTest {
 			isRunning = true;
 			synchronized (ctx.getCheckpointLock()) {
 				while (isRunning && offset.value() < inputs.size()) {
-					Tuple3<String, Integer, Integer> input = inputs.get(offset.value());
-					ctx.collectWithTimestamp(Tuple2.of(input.f0, input.f1), input.f2);
-					ctx.emitWatermark(new Watermark(input.f2));
+					Tuple2<String, Integer> input = inputs.get(offset.value());
+					long time = 2 * offset.value();
+					ctx.collectWithTimestamp(Tuple2.of(input.f0, input.f1), time);
+					if (rnd.nextDouble() < 0.1) {
+						ctx.emitWatermark(new Watermark(time));
+
+					}
 					offset.update(offset.value() + getRuntimeContext().getNumberOfParallelSubtasks());
 					if (rnd.nextDouble() < 0.001) {
 						Thread.sleep(10);
@@ -227,12 +294,12 @@ public class KVStoreCheckpointingTest {
 			EventTimeSourceFunction<String> {
 		private static final long serialVersionUID = 1L;
 
-		private List<Tuple3<String, Integer, Integer>> inputs;
+		private List<Tuple2<String, Integer>> inputs;
 		private OperatorState<Integer> offset;
 
 		private volatile boolean isRunning = false;
 
-		public GetSource(List<Tuple3<String, Integer, Integer>> inputs) {
+		public GetSource(List<Tuple2<String, Integer>> inputs) {
 			this.inputs = inputs;
 		}
 
@@ -241,9 +308,57 @@ public class KVStoreCheckpointingTest {
 			isRunning = true;
 			synchronized (ctx.getCheckpointLock()) {
 				while (isRunning && offset.value() < inputs.size()) {
-					Tuple3<String, Integer, Integer> input = inputs.get(offset.value());
-					ctx.collectWithTimestamp(input.f0, input.f2 + 1);
-					ctx.emitWatermark(new Watermark(input.f2 + 1));
+					Tuple2<String, Integer> input = inputs.get(offset.value());
+					long time = 2 * offset.value() + 1;
+					ctx.collectWithTimestamp(input.f0, time);
+					if (rnd.nextDouble() < 0.1) {
+						ctx.emitWatermark(new Watermark(time));
+
+					}
+					offset.update(offset.value() + getRuntimeContext().getNumberOfParallelSubtasks());
+					if (rnd.nextDouble() < 0.001) {
+						Thread.sleep(10);
+					}
+				}
+			}
+		}
+
+		@Override
+		public void cancel() {
+			isRunning = false;
+		}
+
+		@Override
+		public void open(Configuration c) throws IOException {
+			offset = getRuntimeContext().getOperatorState("offset",
+					getRuntimeContext().getIndexOfThisSubtask(), false);
+		}
+
+	}
+
+	public static class MGetSource extends RichParallelSourceFunction<String[]> implements
+			EventTimeSourceFunction<String[]> {
+		private static final long serialVersionUID = 1L;
+
+		private List<String[]> inputs;
+		private OperatorState<Integer> offset;
+
+		private volatile boolean isRunning = false;
+
+		public MGetSource(List<String[]> inputs) {
+			this.inputs = inputs;
+		}
+
+		@Override
+		public void run(SourceContext<String[]> ctx) throws Exception {
+			isRunning = true;
+			synchronized (ctx.getCheckpointLock()) {
+				while (isRunning && offset.value() < inputs.size()) {
+					long time = 2 * offset.value() + 1;
+					ctx.collectWithTimestamp(inputs.get(offset.value()), time);
+					if (rnd.nextDouble() < 0.1) {
+						ctx.emitWatermark(new Watermark(time));
+					}
 					offset.update(offset.value() + getRuntimeContext().getNumberOfParallelSubtasks());
 					if (rnd.nextDouble() < 0.001) {
 						Thread.sleep(10);
