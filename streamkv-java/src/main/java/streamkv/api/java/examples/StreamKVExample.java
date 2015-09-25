@@ -18,11 +18,15 @@ package streamkv.api.java.examples;
 
 import java.util.Arrays;
 
+import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
+import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.java.tuple.Tuple1;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.util.Collector;
 
 import streamkv.api.java.KVStore;
@@ -30,95 +34,148 @@ import streamkv.api.java.OperationOrdering;
 import streamkv.api.java.Query;
 
 /**
- * This example shows an implementation of a key value store with operations
- * from text sockets. To run the example make sure that the service providing
- * the text data is already up and running.
+ * This example shows an example application using the key value store with
+ * operations from text sockets. To run the example make sure that the service
+ * providing the text data is already up and running.
  * <p>
  * To start an example socket text stream on your local machine run netcat from
- * a command line: <code>nc -lk 9999</code>, where the parameter specifies the
- * port number. Make sure to start the services for both port 9999 (for put),
- * 9998 (for get) and 9997 (for multiget).
- * 
- * This example shows how to:
+ * a command line: <code>nc -lk 9999</code>
+ * <p>
+ * Valid inputs:
  * <ul>
- * <li>use the {@link KVStore} abstraction
- * <li>put to the key-value store,
- * <li>get and multiget from the key-value store.
+ * <li>"put name, amount"</li>
+ * <li>"get name"</li>
+ * <li>"mget name1,name2,..."</li>
+ * <li>"transfer from, to, amount"</li>
  * </ul>
  * 
  * @see <a href="www.openbsd.org/cgi-bin/man.cgi?query=nc">netcat</a>
  */
+@SuppressWarnings("serial")
 public class StreamKVExample {
 
 	public static void main(String[] args) throws Exception {
 
+		// Get the environment and enable checkpointing
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+		env.enableCheckpointing(1000);
 
-		// Create a new KV store for holding (String, Integer) pairs
-		KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.ARRIVALTIME);
+		// Create a store for account information (name, balance)
+		KVStore<String, Double> store = KVStore.withOrdering(OperationOrdering.ARRIVALTIME);
 
-		// Create query streams
-		// Put stream expected input format: key,value
-		DataStream<Tuple2<String, Integer>> putStream = env.socketTextStream("localhost", 9999).flatMap(
+		// Read and parse the input stream from the text socket
+		DataStream<Tuple2<String, String>> inputStream = env.socketTextStream("localhost", 9999).flatMap(
 				new Parser());
 
-		// Get stream expected input format: key
-		DataStream<String> getStream = env.socketTextStream("localhost", 9998);
+		// Convert the put stream to Tuple2-s
+		DataStream<Tuple2<String, Double>> initialBalance = selectOp(inputStream, "put").map(
+				new MapFunction<String, Tuple2<String, Double>>() {
 
-		// MultiGet stream expected input format: key_1, key_2, ..., key_n
-		DataStream<String[]> multiGetStream = env.socketTextStream("localhost", 9997).flatMap(
-				new KArrayParser());
+					@Override
+					public Tuple2<String, Double> map(String in) throws Exception {
+						String[] split = in.split(",");
+						return Tuple2.of(split[0], Double.parseDouble(split[1]));
+					}
 
-		// Apply the query streams to the KV store and fetch the query IDs for
-		// the get and multiGet queries
-		store.put(putStream);
-		Query<Tuple2<String, Integer>> q1 = store.get(getStream);
-		Query<Tuple2<String, Integer>[]> q2 = store.multiGet(multiGetStream);
+				});
 
-		// Fetch and print the query outputs
-		q1.getOutput().print();
-		q2.getOutput().addSink(new PrintArray());
+		// Feed the balance stream into the store
+		store.put(initialBalance);
+
+		// At any time query the balance by name
+		Query<Tuple2<String, Double>> balanceQ = store.get(selectOp(inputStream, "get"));
+
+		// At any time query the balance for multiple people
+		Query<Tuple2<String, Double>[]> mBalanceQ = store.multiGet(selectOp(inputStream, "mget").map(
+				new MapFunction<String, String[]>() {
+
+					@Override
+					public String[] map(String value) throws Exception {
+						return value.split(",");
+					}
+				}));
+
+		// Parse the transfer stream to (from, to, amount)
+		DataStream<Tuple3<String, String, Double>> transferStream = selectOp(inputStream, "transfer").map(
+				new MapFunction<String, Tuple3<String, String, Double>>() {
+
+					@Override
+					public Tuple3<String, String, Double> map(String value) throws Exception {
+						String[] split = value.split(",");
+						return Tuple3.of(split[0], split[1], Double.parseDouble(split[2]));
+					}
+				});
+
+		// Apply transfer by subtracting from the sender and adding to the receiver
+		store.update(transferStream
+				.flatMap(new FlatMapFunction<Tuple3<String, String, Double>, Tuple2<String, Double>>() {
+
+					@Override
+					public void flatMap(Tuple3<String, String, Double> in,
+							Collector<Tuple2<String, Double>> out) throws Exception {
+						out.collect(Tuple2.of(in.f0, -1 * in.f2));
+						out.collect(Tuple2.of(in.f1, in.f2));
+					}
+				}), new Sum());
+
+		// Print the query outputs
+		balanceQ.getOutput().print();
+		mBalanceQ.getOutput().map(new ArrayToString()).print();
 
 		// Execute the program
 		env.execute();
 	}
 
-	public static class Parser implements FlatMapFunction<String, Tuple2<String, Integer>> {
+	/**
+	 * Utility for filtering a specific operation stream from the input
+	 */
+	public static DataStream<String> selectOp(DataStream<Tuple2<String, String>> input, final String op) {
+		return input.filter(new FilterFunction<Tuple2<String, String>>() {
 
-		private static final long serialVersionUID = 1L;
+			@Override
+			public boolean filter(Tuple2<String, String> value) throws Exception {
+				return value.f0.equals(op);
+			}
+		}).<Tuple1<String>> project(1).map(new MapFunction<Tuple1<String>, String>() {
+
+			@Override
+			public String map(Tuple1<String> value) throws Exception {
+				return value.f0;
+			}
+		});
+	}
+
+	private static class Sum implements ReduceFunction<Double> {
 
 		@Override
-		public void flatMap(String value, Collector<Tuple2<String, Integer>> out) throws Exception {
-			try {
-				String[] split = value.split(",");
-				out.collect(Tuple2.of(split[0], Integer.valueOf(split[1])));
-			} catch (Exception e) {
-				System.err.println("Parsing error: " + value);
-			}
+		public Double reduce(Double value1, Double value2) throws Exception {
+			return value1 + value2;
+		}
+
+	}
+
+	private static class ArrayToString implements MapFunction<Tuple2<String, Double>[], String> {
+
+		@Override
+		public String map(Tuple2<String, Double>[] value) throws Exception {
+			return Arrays.toString(value);
 		}
 	}
 
-	public static class KArrayParser implements FlatMapFunction<String, String[]> {
-		private static final long serialVersionUID = 1L;
+	private static class Parser implements FlatMapFunction<String, Tuple2<String, String>> {
 
 		@Override
-		public void flatMap(String value, Collector<String[]> out) throws Exception {
+		public void flatMap(String in, Collector<Tuple2<String, String>> out) throws Exception {
+			if (in.equals("fail")) {
+				throw new RuntimeException("Failed");
+			}
 			try {
-				out.collect(value.split(","));
+				String s = in.replaceFirst(" ", ":").replace(" ", "");
+				int splitPoint = s.indexOf(":");
+				out.collect(Tuple2.of(s.substring(0, splitPoint), s.substring(splitPoint + 1)));
 			} catch (Exception e) {
-				System.err.println("Parsing error: " + value);
+				System.err.println("Parsing error: " + in);
 			}
 		}
-	}
-
-	public static class PrintArray implements SinkFunction<Tuple2<String, Integer>[]> {
-
-		private static final long serialVersionUID = 1L;
-
-		@Override
-		public void invoke(Tuple2<String, Integer>[] value) throws Exception {
-			System.out.println(Arrays.toString(value));
-		}
-
 	}
 }

@@ -22,19 +22,34 @@ import streamkv.api.java.OperationOrdering.ARRIVALTIME
 
 object StreamKVExample {
 
+  /**
+   * This example shows an example application using the key value store with
+   * operations from text sockets. To run the example make sure that the service
+   * providing the text data is already up and running.
+   * <p>
+   * To start an example socket text stream on your local machine run netcat from
+   * a command line: <code>nc -lk 9999</code>
+   * <p>
+   * Valid inputs:
+   * <ul>
+   * <li>"put name, amount"</li>
+   * <li>"get name"</li>
+   * <li>"mget name1,name2,..."</li>
+   * <li>"transfer from, to, amount"</li>
+   * </ul>
+   *
+   * @see <a href="www.openbsd.org/cgi-bin/man.cgi?query=nc">netcat</a>
+   */
   def main(args: Array[String]): Unit = {
 
+    // Get the environment and enable checkpointing
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.enableCheckpointing(1000)
 
     // Create a store for account information (name, balance)
     val store = KVStore[String, Double](ARRIVALTIME)
 
-    // Expected input:
-    // "PUT name, balance"
-    // "GET name"
-    // "MGET name,name,..."
-    // "TRANSFER from, to, amount"
+    // Read and parse the input stream from the text socket
     val inputStream: DataStream[(String, String)] = env.socketTextStream("localhost", 9999).flatMap((in, c) => {
       if (in == "fail") { throw new RuntimeException("Failed") }
       val split = in.split(" ")
@@ -45,7 +60,7 @@ object StreamKVExample {
       }
     })
 
-    // Read the initial balance as a stream
+    // Convert the put stream to Tuple2-s
     val initialBalance = inputStream.filter(_._1 == "PUT").map(x => {
       val split = x._2.split(",")
       (split(0), split(1).toDouble)
@@ -58,21 +73,23 @@ object StreamKVExample {
     val balanceQ = store.get(inputStream.filter(_._1 == "GET").map(_._2))
 
     // At any time query the balance for multiple people
-    val totalBalanceQ = store.multiGet(inputStream.filter(_._1 == "MGET").map(_._2.split(",")))
+    val mBalanceQ = store.multiGet(inputStream.filter(_._1 == "MGET").map(_._2.split(",")))
 
-    // Transfer : (from, to, amount)
-    val transferStream: DataStream[(String, String, Double)] = inputStream.filter(_._1 == "TRANSFER").map(x => {
-      val split = x._2.split(",")
-      (split(0), split(1), split(2).toDouble)
-    })
+    // Parse the transfer stream to (from, to, amount)
+    val transferStream: DataStream[(String, String, Double)] = inputStream.filter(_._1 == "TRANSFER")
+      .map(x => {
+        val split = x._2.split(",")
+        (split(0), split(1), split(2).toDouble)
+      })
 
     // Apply transfer by subtracting from the sender and adding to the receiver
-    store.update(transferStream.flatMap(x => Array((x._1, -1 * x._3), (x._2, x._3))))((b1, b2) => b1 + b2)
+    store.update(transferStream.flatMap(x => List((x._1, -1 * x._3), (x._2, x._3))))(_ + _)
 
     // Print the query outputs
     balanceQ.getOutput.print
-    totalBalanceQ.getOutput.addSink(x => println(x.mkString(",")))
+    mBalanceQ.getOutput.addSink(x => println(x.mkString(",")))
 
+    // Execute the program
     env.execute
   }
 
