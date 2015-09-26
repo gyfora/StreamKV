@@ -17,10 +17,11 @@
 package streamkv.api.java.operator.checkpointing;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -32,12 +33,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.state.OperatorState;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.sink.SinkFunction;
+import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 import org.apache.flink.streaming.api.functions.source.EventTimeSourceFunction;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -50,11 +52,17 @@ import streamkv.api.java.KVStore;
 import streamkv.api.java.OperationOrdering;
 import streamkv.api.java.Query;
 
-public class KVStoreCheckpointingTest {
+@SuppressWarnings("serial")
+/**
+ * Test for verifying that KVStore properly works despite task failures, using the checkpoint mechanism.
+ *
+ */
+public class KVStoreCheckpointingTest implements Serializable {
 
 	final static int NUM_KEYS = 25;
 	static List<Tuple2<String, Integer>> input;
-	static List<Tuple2<String, Integer>[]> mgetInput;
+	static List<Tuple2<String, Integer>[]> mgetInput1;
+	static List<Tuple2<String, Integer>[]> mgetInput2;
 	protected static final int NUM_TASK_MANAGERS = 2;
 	protected static final int NUM_TASK_SLOTS = 3;
 	protected static final int PARALLELISM = NUM_TASK_MANAGERS * NUM_TASK_SLOTS;
@@ -67,30 +75,94 @@ public class KVStoreCheckpointingTest {
 
 		env.getConfig().enableTimestamps();
 
-		input = generateInputs(env.getParallelism() * 10000);
-		mgetInput = generateKVArrays(input);
+		input = generateInputs(env.getParallelism() * 5000);
+		mgetInput1 = generateKVArrays(input);
+		mgetInput2 = generateKVArrays(input);
 
 		DataStream<Tuple2<String, Integer>> putSource = env.addSource(new PutSource(input));
-		DataStream<String> getSource = env.addSource(new GetSource(input));
-		DataStream<String[]> mGetSource = env.addSource(new MGetSource(toMget(mgetInput)));
+		DataStream<String> get1 = env.addSource(new GetSource(input)).map(
+				new MapFunction<Tuple2<String, Integer>, String>() {
+
+					@Override
+					public String map(Tuple2<String, Integer> value) throws Exception {
+						return value.f0;
+					}
+				});
+		DataStream<String> get2 = env.addSource(new GetSource(input)).map(
+				new MapFunction<Tuple2<String, Integer>, String>() {
+
+					@Override
+					public String map(Tuple2<String, Integer> value) throws Exception {
+						return value.f0;
+					}
+				});
+		DataStream<String[]> mget1 = env.addSource(new MGetSource(mgetInput1)).map(
+				new MapFunction<Tuple2<String, Integer>[], String[]>() {
+
+					@Override
+					public String[] map(Tuple2<String, Integer>[] value) throws Exception {
+						String[] out = new String[value.length];
+						for (int i = 0; i < value.length; i++) {
+							out[i] = value[i].f0;
+						}
+						return out;
+					}
+				});
+
+		DataStream<Tuple2<String, Integer>> sget1 = env.addSource(new GetSource(input));
+		DataStream<Tuple2<String, Integer>[]> smget1 = env.addSource(new MGetSource(mgetInput2));
 
 		KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.TIMESTAMP);
 
 		store.put(putSource);
 
-		Query<Tuple2<String, Integer>> getQ = store.get(getSource);
-		Query<Tuple2<String, Integer>[]> mgetQ = store.multiGet(mGetSource);
+		Query<Tuple2<String, Integer>> getQ = store.get(get1);
+		Query<Tuple2<String, Integer>> getQ2 = store.get(get2);
+		Query<Tuple2<String, Integer>[]> mgetQ = store.multiGet(mget1);
+		Query<Tuple2<Tuple2<String, Integer>, Integer>> sgetQ = store.getWithKeySelector(sget1,
+				new KeySelector<Tuple2<String, Integer>, String>() {
+
+					@Override
+					public String getKey(Tuple2<String, Integer> value) throws Exception {
+						return value.f0;
+					}
+				});
+		Query<Tuple2<Tuple2<String, Integer>, Integer>[]> smgetQ = store.multiGetWithKeySelector(smget1,
+				new KeySelector<Tuple2<String, Integer>, String>() {
+
+					@Override
+					public String getKey(Tuple2<String, Integer> value) throws Exception {
+						return value.f0;
+					}
+				});
 
 		getQ.getOutput().map(new OnceFailingMapper()).addSink(new CollectingSink<Tuple2<String, Integer>>());
-
-		mgetQ.getOutput().addSink(new CollectingSink2<Tuple2<String, Integer>[]>());
+		mgetQ.getOutput().addSink(new CollectingSink<Tuple2<String, Integer>[]>());
+		getQ2.getOutput().addSink(new CollectingSink<Tuple2<String, Integer>>());
+		sgetQ.getOutput().addSink(new CollectingSink<Tuple2<Tuple2<String, Integer>, Integer>>());
+		smgetQ.getOutput().addSink(new CollectingSink<Tuple2<Tuple2<String, Integer>, Integer>[]>());
 	}
 
+	@SuppressWarnings("unchecked")
 	public void postSubmit() {
 		assertTrue(OnceFailingMapper.failed);
-		assertEquals(new HashSet<>(input), CollectingSink.collected);
-		assertEquals(toSetOfSets(mgetInput), toSetOfSets(CollectingSink2.collected));
+		Set<Tuple2<String, Integer>> inputSet = new HashSet<>(input);
+		assertEquals(inputSet, CollectingSink.allCollected.get(0));
+		assertEquals(toSetOfSets(mgetInput1), toSetOfSets(CollectingSink.allCollected.get(1)));
+		assertEquals(inputSet, CollectingSink.allCollected.get(2));
 
+		for (Object o : CollectingSink.allCollected.get(3)) {
+			Tuple2<Tuple2<String, Integer>, Integer> tt = (Tuple2<Tuple2<String, Integer>, Integer>) o;
+			assertEquals(tt.f0.f1, tt.f1);
+		}
+
+		for (Object o : CollectingSink.allCollected.get(4)) {
+			Tuple2<Tuple2<String, Integer>, Integer>[] arr = (Tuple2<Tuple2<String, Integer>, Integer>[]) o;
+			for (Tuple2<Tuple2<String, Integer>, Integer> tt : arr) {
+				assertEquals(tt.f0.f1, tt.f1);
+
+			}
+		}
 	}
 
 	@BeforeClass
@@ -142,30 +214,29 @@ public class KVStoreCheckpointingTest {
 		}
 	}
 
-	private static class CollectingSink<T> implements SinkFunction<T> {
+	private static class CollectingSink<T> extends RichSinkFunction<T> {
 		private static final long serialVersionUID = 1L;
 
-		public static Set<Object> collected = Collections
-				.newSetFromMap(new ConcurrentHashMap<Object, Boolean>());
+		public static List<Set<Object>> allCollected = Collections
+				.synchronizedList(new ArrayList<Set<Object>>());
+
+		private Set<Object> collected;
+		private int i;
+
+		public CollectingSink() {
+			allCollected.add(Collections.newSetFromMap(new ConcurrentHashMap<Object, Boolean>()));
+			i = allCollected.size() - 1;
+		}
 
 		@Override
 		public void invoke(T value) throws Exception {
 			collected.add(value);
 		}
 
-	}
-
-	private static class CollectingSink2<T> implements SinkFunction<T> {
-		private static final long serialVersionUID = 1L;
-
-		public static Set<Object> collected = Collections
-				.newSetFromMap(new ConcurrentHashMap<Object, Boolean>());
-
 		@Override
-		public void invoke(T value) throws Exception {
-			collected.add(value);
+		public void open(Configuration c) {
+			collected = allCollected.get(i);
 		}
-
 	}
 
 	private static class OnceFailingMapper implements
@@ -216,18 +287,6 @@ public class KVStoreCheckpointingTest {
 			out.add(kvs.toArray(new Tuple2[kvs.size()]));
 		}
 
-		return out;
-	}
-
-	private List<String[]> toMget(List<Tuple2<String, Integer>[]> input) {
-		List<String[]> out = new ArrayList<>();
-		for (Tuple2<String, Integer>[] arr : input) {
-			String[] outArr = new String[arr.length];
-			for (int i = 0; i < arr.length; i++) {
-				outArr[i] = arr[i].f0;
-			}
-			out.add(outArr);
-		}
 		return out;
 	}
 
@@ -290,8 +349,8 @@ public class KVStoreCheckpointingTest {
 
 	}
 
-	public static class GetSource extends RichParallelSourceFunction<String> implements
-			EventTimeSourceFunction<String> {
+	public static class GetSource extends RichParallelSourceFunction<Tuple2<String, Integer>> implements
+			EventTimeSourceFunction<Tuple2<String, Integer>> {
 		private static final long serialVersionUID = 1L;
 
 		private List<Tuple2<String, Integer>> inputs;
@@ -304,13 +363,13 @@ public class KVStoreCheckpointingTest {
 		}
 
 		@Override
-		public void run(SourceContext<String> ctx) throws Exception {
+		public void run(SourceContext<Tuple2<String, Integer>> ctx) throws Exception {
 			isRunning = true;
 			synchronized (ctx.getCheckpointLock()) {
 				while (isRunning && offset.value() < inputs.size()) {
 					Tuple2<String, Integer> input = inputs.get(offset.value());
 					long time = 2 * offset.value() + 1;
-					ctx.collectWithTimestamp(input.f0, time);
+					ctx.collectWithTimestamp(input, time);
 					if (rnd.nextDouble() < 0.1) {
 						ctx.emitWatermark(new Watermark(time));
 
@@ -336,21 +395,21 @@ public class KVStoreCheckpointingTest {
 
 	}
 
-	public static class MGetSource extends RichParallelSourceFunction<String[]> implements
-			EventTimeSourceFunction<String[]> {
+	public static class MGetSource extends RichParallelSourceFunction<Tuple2<String, Integer>[]> implements
+			EventTimeSourceFunction<Tuple2<String, Integer>[]> {
 		private static final long serialVersionUID = 1L;
 
-		private List<String[]> inputs;
+		private List<Tuple2<String, Integer>[]> inputs;
 		private OperatorState<Integer> offset;
 
 		private volatile boolean isRunning = false;
 
-		public MGetSource(List<String[]> inputs) {
+		public MGetSource(List<Tuple2<String, Integer>[]> inputs) {
 			this.inputs = inputs;
 		}
 
 		@Override
-		public void run(SourceContext<String[]> ctx) throws Exception {
+		public void run(SourceContext<Tuple2<String, Integer>[]> ctx) throws Exception {
 			isRunning = true;
 			synchronized (ctx.getCheckpointLock()) {
 				while (isRunning && offset.value() < inputs.size()) {
