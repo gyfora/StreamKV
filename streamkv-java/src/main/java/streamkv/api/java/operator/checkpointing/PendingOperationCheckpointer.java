@@ -31,7 +31,7 @@ import org.apache.flink.core.memory.OutputViewDataOutputStreamWrapper;
 
 import streamkv.api.java.operator.TimestampedKVStoreOperator;
 import streamkv.api.java.types.KVOperation;
-import streamkv.api.java.types.KVOperationTypeInfo.KVOpSerializer;
+import streamkv.api.java.types.KVOperationSerializer;
 
 /**
  * {@link StateCheckpointer} for the efficient serialization of the buffered
@@ -46,9 +46,9 @@ import streamkv.api.java.types.KVOperationTypeInfo.KVOpSerializer;
 public class PendingOperationCheckpointer<K, V> implements
 		StateCheckpointer<TreeMap<Long, List<KVOperation<K, V>>>, byte[]> {
 
-	private KVOpSerializer<K, V> opSerializer;
+	private KVOperationSerializer<K, V> opSerializer;
 
-	public PendingOperationCheckpointer(KVOpSerializer<K, V> opSerializer) {
+	public PendingOperationCheckpointer(KVOperationSerializer<K, V> opSerializer) {
 		this.opSerializer = opSerializer;
 	}
 

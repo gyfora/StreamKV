@@ -30,7 +30,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 
 import streamkv.api.java.types.KVOperation;
 import streamkv.api.java.types.KVOperation.KVOperationType;
-import streamkv.api.java.types.KVOperationTypeInfo.KVOpSerializer;
+import streamkv.api.java.types.KVOperationSerializer;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -38,7 +38,7 @@ public class RandomKVOperationGenerator {
 
 	private Random rnd = new Random();
 	@SuppressWarnings("rawtypes")
-	public static KVOpSerializer<Integer, Integer> opSerializer = new KVOpSerializer<>(
+	public static KVOperationSerializer<Integer, Integer> opSerializer = new KVOperationSerializer<>(
 			IntSerializer.INSTANCE,
 			IntSerializer.INSTANCE,
 			new HashMap<Short, ReduceFunction<Integer>>(),
@@ -68,7 +68,7 @@ public class RandomKVOperationGenerator {
 		return ops;
 	}
 
-	public KVOpSerializer<Integer, Integer> getSerializer() {
+	public KVOperationSerializer<Integer, Integer> getSerializer() {
 		return opSerializer;
 	}
 

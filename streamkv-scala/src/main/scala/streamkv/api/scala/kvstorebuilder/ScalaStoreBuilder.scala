@@ -43,14 +43,14 @@ class ScalaStoreBuilder[K: TypeInformation: ClassTag, V: TypeInformation: ClassT
     KVUtils.nonCopyingMap(stream, createCaseClassTypeInfo(kvOpType.keyType, kvOpType.valueType)
       .asInstanceOf[TypeInformation[(K, V)]],
       new MapFunction[KVOperation[K, V], (K, V)]() {
-        def map(in: KVOperation[K, V]) = (in.getKey(), in.getValue())
+        def map(in: KVOperation[K, V]) = (in.key, in.value)
       })
   }
 
   def toSKVStream(stream: DataStream[KVOperation[K, V]], recordType: TypeInformation[_]): DataStream[_] = {
     KVUtils.nonCopyingMap(stream, createCaseClassTypeInfo(recordType, kvOpType.valueType),
       new MapFunction[KVOperation[K, V], Product]() {
-        def map(in: KVOperation[K, V]) = (in.getRecord(), in.getValue())
+        def map(in: KVOperation[K, V]) = (in.record, in.value)
       })
   }
 

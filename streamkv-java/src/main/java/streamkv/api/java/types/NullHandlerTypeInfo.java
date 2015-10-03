@@ -20,7 +20,7 @@ import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 
-public class NullHandlerTypeInfo<T> extends TypeInformation<T> {
+public final class NullHandlerTypeInfo<T> extends TypeInformation<T> {
 
 	private static final long serialVersionUID = 1L;
 	private TypeInformation<T> typeInfo;

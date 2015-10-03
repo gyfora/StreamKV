@@ -55,8 +55,8 @@ public class MultiGetMerger<K, V> extends RichFlatMapFunction<KVOperation<K, V>,
 	@Override
 	public void flatMap(KVOperation<K, V> next, Collector<Tuple2[]> out) throws Exception {
 		Tuple2<Integer, Tuple2[]> partial = merged.value();
-		Object key = next.getType() == KVOperationType.MGETRES ? next.getKey() : next.getRecord();
-		short numKeys = next.getNumKeys();
+		Object key = next.type == KVOperationType.MGETRES ? next.key : next.record;
+		short numKeys = next.numKeys;
 
 		if (numKeys == 0) {
 			throw new RuntimeException("Number of keys must be at least 1");
@@ -65,11 +65,11 @@ public class MultiGetMerger<K, V> extends RichFlatMapFunction<KVOperation<K, V>,
 		if (partial.f0 == -1) {
 			partial.f0 = (int) numKeys - 1;
 			partial.f1 = new Tuple2[numKeys];
-			partial.f1[0] = Tuple2.of(key, next.getValue());
+			partial.f1[0] = Tuple2.of(key, next.value);
 
 		} else {
 			partial.f0 -= 1;
-			partial.f1[numKeys - partial.f0 - 1] = Tuple2.of(key, next.getValue());
+			partial.f1[numKeys - partial.f0 - 1] = Tuple2.of(key, next.value);
 		}
 
 		if (partial.f0 == 0) {

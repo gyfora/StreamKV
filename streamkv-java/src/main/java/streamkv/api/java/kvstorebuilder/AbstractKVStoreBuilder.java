@@ -31,7 +31,6 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.typeutils.ObjectArrayTypeInfo;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
-import com.google.common.base.Preconditions;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.datastream.SplitDataStream;
@@ -42,9 +41,11 @@ import streamkv.api.java.OperationOrdering;
 import streamkv.api.java.operator.AsyncKVStoreOperator;
 import streamkv.api.java.operator.TimestampedKVStoreOperator;
 import streamkv.api.java.types.KVOperation;
+import streamkv.api.java.types.KVOperationSerializer;
 import streamkv.api.java.types.KVOperationTypeInfo;
-import streamkv.api.java.types.KVOperationTypeInfo.KVOpSerializer;
 import streamkv.api.java.util.KVUtils;
+
+import com.google.common.base.Preconditions;
 
 @SuppressWarnings({ "rawtypes", "unchecked" })
 public abstract class AbstractKVStoreBuilder<K, V> {
@@ -164,7 +165,7 @@ public abstract class AbstractKVStoreBuilder<K, V> {
 			// Apply the operator that executes the KVStore logic then split the
 			// output by their query ID
 			KVOperationTypeInfo<K, V> kvOpType = getKVOperationType();
-			OneInputStreamOperator<KVOperation<K, V>, KVOperation<K, V>> op = getKVOperator((KVOpSerializer<K, V>) kvOpType
+			OneInputStreamOperator<KVOperation<K, V>, KVOperation<K, V>> op = getKVOperator((KVOperationSerializer<K, V>) kvOpType
 					.createSerializer(getConfig()));
 			SplitDataStream<KVOperation<K, V>> splitStream = input.transform(op.getClass().getSimpleName(),
 					kvOpType, op).split(new KVUtils.IDOutputSelector<K, V>());
@@ -263,7 +264,7 @@ public abstract class AbstractKVStoreBuilder<K, V> {
 
 				@Override
 				public K getKey(KVOperation<K, V> value) throws Exception {
-					return (K) selector.getKey(value.getRecord());
+					return (K) selector.getKey(value.record);
 				}
 
 			}));
@@ -283,7 +284,7 @@ public abstract class AbstractKVStoreBuilder<K, V> {
 
 				@Override
 				public K getKey(KVOperation<K, V> value) throws Exception {
-					return (K) selector.getKey(value.getRecord());
+					return (K) selector.getKey(value.record);
 				}
 
 			}));
@@ -312,7 +313,7 @@ public abstract class AbstractKVStoreBuilder<K, V> {
 	}
 
 	private OneInputStreamOperator<KVOperation<K, V>, KVOperation<K, V>> getKVOperator(
-			KVOpSerializer<K, V> serializer) {
+			KVOperationSerializer<K, V> serializer) {
 		if (ordering == OperationOrdering.TIMESTAMP) {
 			return new TimestampedKVStoreOperator<>(serializer);
 		} else if (ordering == OperationOrdering.ARRIVALTIME) {

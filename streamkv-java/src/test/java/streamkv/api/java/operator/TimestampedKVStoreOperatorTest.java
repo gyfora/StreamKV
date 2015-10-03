@@ -32,10 +32,8 @@ import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.TestHarnessUtil;
 import org.junit.Test;
 
-import streamkv.api.java.operator.AsyncKVStoreOperator;
-import streamkv.api.java.operator.TimestampedKVStoreOperator;
 import streamkv.api.java.types.KVOperation;
-import streamkv.api.java.types.KVOperationTypeInfo.KVOpSerializer;
+import streamkv.api.java.types.KVOperationSerializer;
 
 public class TimestampedKVStoreOperatorTest {
 
@@ -43,7 +41,7 @@ public class TimestampedKVStoreOperatorTest {
 	public void testKVOperator() throws Exception {
 
 		AsyncKVStoreOperator<String, Integer> operator = new TimestampedKVStoreOperator<>(
-				new KVOpSerializer<String, Integer>(StringSerializer.INSTANCE, IntSerializer.INSTANCE, null,
+				new KVOperationSerializer<String, Integer>(StringSerializer.INSTANCE, IntSerializer.INSTANCE, null,
 						null, null));
 
 		OneInputStreamOperatorTestHarness<KVOperation<String, Integer>, KVOperation<String, Integer>> testHarness = new OneInputStreamOperatorTestHarness<>(

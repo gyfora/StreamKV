@@ -54,7 +54,7 @@ public class KVUtils {
 
 		@Override
 		public K getKey(KVOperation<K, V> op) throws Exception {
-			return op.getKey();
+			return op.key;
 		}
 
 	}
@@ -72,16 +72,16 @@ public class KVUtils {
 		public KVOperation<K, V> map(Tuple2<K, V> next) throws Exception {
 			Preconditions.checkNotNull(next.f0, "Key must not be null");
 			Preconditions.checkNotNull(next.f1, "Value must not be null");
-			reuse.setKey(next.f0);
-			reuse.setValue(next.f1);
+			reuse.key = next.f0;
+			reuse.value = next.f1;
 			return reuse;
 		}
 
 		@Override
 		public void open(Configuration c) {
 			reuse = new KVOperation<>();
-			reuse.setQueryID((short) index);
-			reuse.setType(KVOperationType.PUT);
+			reuse.queryID = ((short) index);
+			reuse.type = KVOperationType.PUT;
 		}
 	}
 
@@ -98,16 +98,16 @@ public class KVUtils {
 		public KVOperation<K, V> map(Tuple2<K, V> next) throws Exception {
 			Preconditions.checkNotNull(next.f0, "Key must not be null");
 			Preconditions.checkNotNull(next.f1, "Value must not be null");
-			reuse.setKey(next.f0);
-			reuse.setValue(next.f1);
+			reuse.key = next.f0;
+			reuse.value = next.f1;
 			return reuse;
 		}
 
 		@Override
 		public void open(Configuration c) {
 			reuse = new KVOperation<>();
-			reuse.setQueryID((short) index);
-			reuse.setType(KVOperationType.UPDATE);
+			reuse.queryID = (short) index;
+			reuse.type = KVOperationType.UPDATE;
 		}
 	}
 
@@ -123,15 +123,15 @@ public class KVUtils {
 		@Override
 		public KVOperation<K, V> map(K key) throws Exception {
 			Preconditions.checkNotNull(key, "Key must not be null");
-			reuse.setKey(key);
+			reuse.key = key;
 			return reuse;
 		}
 
 		@Override
 		public void open(Configuration c) {
 			reuse = new KVOperation<>();
-			reuse.setQueryID((short) index);
-			reuse.setType(KVOperationType.GET);
+			reuse.queryID = (short) index;
+			reuse.type = KVOperationType.GET;
 		}
 	}
 
@@ -147,15 +147,15 @@ public class KVUtils {
 		@Override
 		public KVOperation<K, V> map(K key) throws Exception {
 			Preconditions.checkNotNull(key, "Key must not be null");
-			reuse.setKey(key);
+			reuse.key = key;
 			return reuse;
 		}
 
 		@Override
 		public void open(Configuration c) {
 			reuse = new KVOperation<>();
-			reuse.setQueryID((short) index);
-			reuse.setType(KVOperationType.REMOVE);
+			reuse.queryID = (short) index;
+			reuse.type = KVOperationType.REMOVE;
 		}
 	}
 
@@ -173,15 +173,15 @@ public class KVUtils {
 		public KVOperation<K, V> map(Object record) throws Exception {
 			Preconditions.checkNotNull(record, "Key must not be null");
 
-			reuse.setRecord(record);
+			reuse.record = record;
 			return reuse;
 		}
 
 		@Override
 		public void open(Configuration c) {
 			reuse = new KVOperation<>();
-			reuse.setQueryID((short) index);
-			reuse.setType(KVOperationType.SGET);
+			reuse.queryID = (short) index;
+			reuse.type = KVOperationType.SGET;
 		}
 	}
 
@@ -192,8 +192,8 @@ public class KVUtils {
 
 		@Override
 		public Tuple2<K, V> map(KVOperation<K, V> op) throws Exception {
-			reuse.setField(op.getKey(), 0);
-			reuse.setField(op.getValue(), 1);
+			reuse.f0 = op.key;
+			reuse.f1 = op.value;
 			return reuse;
 		}
 
@@ -210,8 +210,8 @@ public class KVUtils {
 
 		@Override
 		public Tuple2<Object, V> map(KVOperation<K, V> op) throws Exception {
-			reuse.setField(op.getRecord(), 0);
-			reuse.setField(op.getValue(), 1);
+			reuse.f0 = op.record;
+			reuse.f1 = op.value;
 			return reuse;
 		}
 
@@ -238,12 +238,12 @@ public class KVUtils {
 			if (keys.length == 0) {
 				throw new RuntimeException("Number of keys must be at least 1.");
 			}
-			reuse.setNumKeys((short) keys.length);
-			reuse.setOperationID(rnd.nextLong());
+			reuse.numKeys = (short) keys.length;
+			reuse.operationID = rnd.nextLong();
 			for (K key : keys) {
 				Preconditions.checkNotNull(key, "Key must not be null");
 
-				reuse.setKey(key);
+				reuse.key = key;
 				out.collect(reuse);
 			}
 		}
@@ -251,8 +251,8 @@ public class KVUtils {
 		@Override
 		public void open(Configuration conf) {
 			reuse = new KVOperation<>();
-			reuse.setQueryID((short) index);
-			reuse.setType(KVOperationType.MGET);
+			reuse.queryID = (short) index;
+			reuse.type = KVOperationType.MGET;
 			rnd = new Random();
 		}
 	}
@@ -275,11 +275,11 @@ public class KVUtils {
 			if (keys.length == 0) {
 				throw new RuntimeException("Number of keys must be at least 1.");
 			}
-			reuse.setNumKeys((short) keys.length);
-			reuse.setOperationID(rnd.nextLong());
+			reuse.numKeys = (short) keys.length;
+			reuse.operationID = rnd.nextLong();
 			for (Object key : keys) {
 				Preconditions.checkNotNull(key, "Key must not be null");
-				reuse.setRecord(key);
+				reuse.record = key;
 				out.collect(reuse);
 			}
 		}
@@ -287,8 +287,8 @@ public class KVUtils {
 		@Override
 		public void open(Configuration conf) {
 			reuse = new KVOperation<>();
-			reuse.setQueryID((short) index);
-			reuse.setType(KVOperationType.SMGET);
+			reuse.queryID = (short) index;
+			reuse.type = KVOperationType.SMGET;
 			rnd = new Random();
 		}
 	}
@@ -299,7 +299,7 @@ public class KVUtils {
 
 		@Override
 		public Long getKey(KVOperation<K, V> value) throws Exception {
-			return value.getOperationID();
+			return value.operationID;
 		}
 	}
 
@@ -309,7 +309,7 @@ public class KVUtils {
 
 		@Override
 		public Iterable<String> select(KVOperation<K, V> value) {
-			selected.set(0, ((Short) value.getQueryID()).toString());
+			selected.set(0, ((Short) value.queryID).toString());
 			return selected;
 		}
 	}

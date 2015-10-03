@@ -33,9 +33,10 @@ import java.io.Serializable;
  * @param <V>
  *            Type of the values.
  */
-public class KVOperation<K, V> implements Serializable {
+public final class KVOperation<K, V> implements Serializable {
 
 	private static final long serialVersionUID = 4333191409809358657L;
+
 	public enum KVOperationType {
 		PUT, GET, REMOVE, MGET, SGET, GETRES, REMOVERES, MGETRES, SGETRES, SMGET, SMGETRES, UPDATE;
 	}
@@ -43,23 +44,21 @@ public class KVOperation<K, V> implements Serializable {
 	public static KVOperationType[] types = KVOperationType.values();
 
 	// General attributes
-	private KVOperationType type;
-	private short queryID;
+	public KVOperationType type;
+	public short queryID;
+	public K key;
+	public V value;
 
-	// For standard PUT/GET operations
-	private K key;
-	private V value;
+	// For selector operations
+	public Object record;
+	public KeySelector<Object, K> keySelector;
 
-	// For GET with KeySelector
-	private Object record;
-	private KeySelector<Object, K> keySelector;
-	
 	// For UPDATE operations
-	private ReduceFunction<V> reducer;
+	public ReduceFunction<V> reducer;
 
 	// For MULTIGET operations
-	private long operationID;
-	private short numKeys;
+	public long operationID;
+	public short numKeys;
 
 	public KVOperation() {
 	}
@@ -79,83 +78,10 @@ public class KVOperation<K, V> implements Serializable {
 		this.operationID = operationID;
 	}
 
-	public void setKey(K key) {
-		this.key = key;
-	}
-	
-	public ReduceFunction<V> getReducer() {
-		return reducer;
-	}
-
-	public void setReducer(ReduceFunction<V> reducer) {
-		this.reducer = reducer;
-	}
-
-
-	public K getKey() {
-		return key;
-	}
-
-	public void setValue(V value) {
-		this.value = value;
-	}
-
-	public V getValue() {
-		return value;
-	}
-
-	public void setType(KVOperationType type) {
-		this.type = type;
-	}
-
-	public KVOperationType getType() {
-		return type;
-	}
-
-	public void setQueryID(short id) {
-		this.queryID = id;
-	}
-
-	public short getQueryID() {
-		return queryID;
-	}
-
-	public void setOperationID(long id) {
-		this.operationID = id;
-	}
-
-	public long getOperationID() {
-		return operationID;
-	}
-
-	public void setNumKeys(short nk) {
-		this.numKeys = nk;
-	}
-
-	public short getNumKeys() {
-		return numKeys;
-	}
-
-	public Object getRecord() {
-		return record;
-	}
-
-	public void setRecord(Object record) {
-		this.record = record;
-	}
-
-	public KeySelector<Object, K> getKeySelector() {
-		return keySelector;
-	}
-
-	public void setKeySelector(KeySelector<Object, K> keySelector) {
-		this.keySelector = keySelector;
-	}
-
 	public static <K, V> KVOperation<K, V> put(int id, K key, V value) {
 		return new KVOperation<>((short) id, key, value, null, KVOperationType.PUT);
 	}
-	
+
 	public static <K, V> KVOperation<K, V> update(int id, K key, V value) {
 		return new KVOperation<>((short) id, key, value, null, KVOperationType.UPDATE);
 	}

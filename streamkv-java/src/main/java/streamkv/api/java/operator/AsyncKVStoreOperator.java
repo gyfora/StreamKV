@@ -19,7 +19,7 @@ package streamkv.api.java.operator;
 import java.io.IOException;
 import java.util.HashMap;
 
-import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.Function;
 import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.common.state.OperatorState;
 import org.apache.flink.api.java.functions.KeySelector;
@@ -31,7 +31,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
 import streamkv.api.java.operator.checkpointing.KVMapCheckpointer;
 import streamkv.api.java.types.KVOperation;
-import streamkv.api.java.types.KVOperationTypeInfo.KVOpSerializer;
+import streamkv.api.java.types.KVOperationSerializer;
 
 /**
  * Asynchronous implementation of the KVStore operator, which executes
@@ -44,17 +44,17 @@ import streamkv.api.java.types.KVOperationTypeInfo.KVOpSerializer;
  * @param <V>
  *            Type of the values.
  */
-@SuppressWarnings("rawtypes")
-public class AsyncKVStoreOperator<K, V> extends AbstractUdfStreamOperator<KVOperation<K, V>, MapFunction> implements
+public class AsyncKVStoreOperator<K, V> extends AbstractUdfStreamOperator<KVOperation<K, V>, Function> implements
 		OneInputStreamOperator<KVOperation<K, V>, KVOperation<K, V>> {
 
 	private static final long serialVersionUID = 1L;
 
 	private OperatorState<HashMap<K, V>> kvStore;
-	protected KVOpSerializer<K, V> kvOpSerializer;
+	protected KVOperationSerializer<K, V> kvOpSerializer;
 
-	public AsyncKVStoreOperator(KVOpSerializer<K, V> kvOpSerializer) {
-		super(null);
+	@SuppressWarnings("serial")
+	public AsyncKVStoreOperator(KVOperationSerializer<K, V> kvOpSerializer) {
+		super(new Function(){});
 		this.kvOpSerializer = kvOpSerializer;
 	}
 
@@ -70,42 +70,42 @@ public class AsyncKVStoreOperator<K, V> extends AbstractUdfStreamOperator<KVOper
 	protected void executeOperation(KVOperation<K, V> op, StreamRecord<KVOperation<K, V>> reuse)
 			throws Exception {
 		HashMap<K, V> store = kvStore.value();
-		K key = op.getKey();
+		K key = op.key;
 
-		switch (op.getType()) {
+		switch (op.type) {
 		case PUT:
-			store.put(key, op.getValue());
+			store.put(key, op.value);
 			break;
 		case UPDATE:
-			ReduceFunction<V> reduceFunction = op.getReducer();
+			ReduceFunction<V> reduceFunction = op.reducer;
 			if (!store.containsKey(key)) {
-				store.put(key, op.getValue());
+				store.put(key, op.value);
 			} else {
 				// FIXME shall we copy here?
-				store.put(key, reduceFunction.reduce(store.get(key), op.getValue()));
+				store.put(key, reduceFunction.reduce(store.get(key), op.value));
 			}
 			break;
 		case GET:
-			output.collect(reuse.replace(KVOperation.getRes(op.getQueryID(), key, store.get(key))));
+			output.collect(reuse.replace(KVOperation.getRes(op.queryID, key, store.get(key))));
 			break;
 		case MGET:
-			output.collect(reuse.replace(KVOperation.multiGetRes(op.getQueryID(), key, store.get(key),
-					op.getNumKeys(), op.getOperationID())));
+			output.collect(reuse.replace(KVOperation.multiGetRes(op.queryID, key, store.get(key),
+					op.numKeys, op.operationID)));
 			break;
 		case REMOVE:
-			output.collect(reuse.replace(KVOperation.removeRes(op.getQueryID(), key, store.remove(key))));
+			output.collect(reuse.replace(KVOperation.removeRes(op.queryID, key, store.remove(key))));
 			break;
 		case SGET:
-			Object record = op.getRecord();
-			KeySelector<Object, K> selector = op.getKeySelector();
-			output.collect(reuse.replace(KVOperation.<K, V> selectorGetRes(op.getQueryID(), record,
+			Object record = op.record;
+			KeySelector<Object, K> selector = op.keySelector;
+			output.collect(reuse.replace(KVOperation.<K, V> selectorGetRes(op.queryID, record,
 					store.get(selector.getKey(record)))));
 			break;
 		case SMGET:
-			Object rec = op.getRecord();
-			KeySelector<Object, K> s = op.getKeySelector();
-			output.collect(reuse.replace(KVOperation.<K, V> selectorMultiGetRes(op.getQueryID(), rec,
-					store.get(s.getKey(rec)), op.getNumKeys(), op.getOperationID())));
+			Object rec = op.record;
+			KeySelector<Object, K> s = op.keySelector;
+			output.collect(reuse.replace(KVOperation.<K, V> selectorMultiGetRes(op.queryID, rec,
+					store.get(s.getKey(rec)), op.numKeys, op.operationID)));
 			break;
 		default:
 			throw new UnsupportedOperationException("Not implemented yet");

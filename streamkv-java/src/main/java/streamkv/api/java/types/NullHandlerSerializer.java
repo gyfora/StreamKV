@@ -22,7 +22,7 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
 
-public class NullHandlerSerializer<T> extends TypeSerializer<T> {
+public final class NullHandlerSerializer<T> extends TypeSerializer<T> {
 
 	private static final long serialVersionUID = 1L;
 	private TypeSerializer<T> serializer;

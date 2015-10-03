@@ -24,8 +24,6 @@ import org.apache.flink.api.common.typeutils.ComparatorTestBase.TestInputView;
 import org.apache.flink.api.common.typeutils.ComparatorTestBase.TestOutputView;
 import org.junit.Test;
 
-import streamkv.api.java.types.KVOperation;
-import streamkv.api.java.types.KVOperationTypeInfo.KVOpSerializer;
 import streamkv.api.java.util.RandomKVOperationGenerator;
 
 public class KVOperationSerializerTest {
@@ -38,7 +36,7 @@ public class KVOperationSerializerTest {
 		Random rnd = new Random();
 
 		KVOperation<Integer, Integer>[] ops = gen.generate(1000);
-		KVOpSerializer<Integer, Integer> serializer = gen.getSerializer();
+		KVOperationSerializer<Integer, Integer> serializer = gen.getSerializer();
 
 		for (KVOperation<Integer, Integer> op : ops) {
 			assertEquals(op, serializer.copy(op));
@@ -54,7 +52,7 @@ public class KVOperationSerializerTest {
 		Random rnd = new Random();
 
 		KVOperation<Integer, Integer>[] ops = gen.generate(1000);
-		KVOpSerializer<Integer, Integer> serializer = gen.getSerializer();
+		KVOperationSerializer<Integer, Integer> serializer = gen.getSerializer();
 
 		for (KVOperation<Integer, Integer> op : ops) {
 			TestOutputView out = new TestOutputView();

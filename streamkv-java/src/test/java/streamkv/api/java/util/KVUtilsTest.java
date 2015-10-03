@@ -35,8 +35,7 @@ import org.apache.flink.util.Collector;
 import org.junit.Test;
 
 import streamkv.api.java.types.KVOperation;
-import streamkv.api.java.types.KVOperationTypeInfo;
-import streamkv.api.java.util.KVUtils;
+import streamkv.api.java.types.KVOperationSerializer;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -136,7 +135,7 @@ public class KVUtilsTest {
 
 		toMGet.flatMap(new Integer[] { 1, 2, 3 }, out);
 
-		long opID = out.elements.get(0).getOperationID();
+		long opID = out.elements.get(0).operationID;
 
 		assertEquals(
 				out.elements,
@@ -168,7 +167,7 @@ public class KVUtilsTest {
 
 		toSMGet.flatMap(new String[] { "a", "b" }, out);
 
-		long opID = out.elements.get(0).getOperationID();
+		long opID = out.elements.get(0).operationID;
 
 		assertEquals(
 				out.elements,
@@ -192,7 +191,7 @@ public class KVUtilsTest {
 
 		List<KVOperation<Integer, String>> elements = new ArrayList<>();
 		@SuppressWarnings("rawtypes")
-		TypeSerializer<KVOperation<Integer, String>> s = new KVOperationTypeInfo.KVOpSerializer<Integer, String>(
+		TypeSerializer<KVOperation<Integer, String>> s = new KVOperationSerializer<Integer, String>(
 				IntSerializer.INSTANCE, null, null, ImmutableMap.of((short) 2,
 						Tuple2.<TypeSerializer, KeySelector> of(StringSerializer.INSTANCE, null)), null);
 

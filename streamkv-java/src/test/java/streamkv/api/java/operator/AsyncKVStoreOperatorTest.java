@@ -27,9 +27,8 @@ import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.TestHarnessUtil;
 import org.junit.Test;
 
-import streamkv.api.java.operator.AsyncKVStoreOperator;
 import streamkv.api.java.types.KVOperation;
-import streamkv.api.java.types.KVOperationTypeInfo.KVOpSerializer;
+import streamkv.api.java.types.KVOperationSerializer;
 
 public class AsyncKVStoreOperatorTest {
 
@@ -37,7 +36,7 @@ public class AsyncKVStoreOperatorTest {
 	public void testKVOperator() throws Exception {
 
 		AsyncKVStoreOperator<String, Integer> operator = new AsyncKVStoreOperator<>(
-				new KVOpSerializer<String, Integer>(StringSerializer.INSTANCE, IntSerializer.INSTANCE, null,
+				new KVOperationSerializer<String, Integer>(StringSerializer.INSTANCE, IntSerializer.INSTANCE, null,
 						null, null));
 
 		OneInputStreamOperatorTestHarness<KVOperation<String, Integer>, KVOperation<String, Integer>> testHarness = new OneInputStreamOperatorTestHarness<>(
@@ -116,14 +115,14 @@ public class AsyncKVStoreOperatorTest {
 	public static KVOperation<String, Integer> update(int id, String key, Integer val,
 			ReduceFunction<Integer> reducer) {
 		KVOperation<String, Integer> op = KVOperation.update(id, key, val);
-		op.setReducer(reducer);
+		op.reducer = reducer;
 		return op;
 	}
 
 	public static <X> KVOperation<String, Integer> selectorGet(int id, X record,
 			KeySelector<Object, String> selector) {
 		KVOperation<String, Integer> op = KVOperation.<String, Integer> selectorGet(id, record);
-		op.setKeySelector(selector);
+		op.keySelector = selector;
 		return op;
 	}
 
@@ -131,7 +130,7 @@ public class AsyncKVStoreOperatorTest {
 			KeySelector<Object, String> selector) {
 		KVOperation<String, Integer> op = KVOperation.<String, Integer> selectorMultiGet(id, record,
 				(short) nk, opID);
-		op.setKeySelector(selector);
+		op.keySelector = selector;
 		return op;
 	}
 }
