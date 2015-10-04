@@ -107,14 +107,14 @@ public abstract class LocalBenchmark implements Serializable {
 
 	}
 
-	public void runBenchmark(StreamExecutionEnvironment env, KVStore<Integer, Integer> store,
-			String description) throws Exception {
+	public void runBenchmark(StreamExecutionEnvironment env, KVStore<Integer, Integer> store, String description)
+			throws Exception {
 		store.getQueries().get(0).getOutput();
 
 		JobExecutionResult result = env.execute();
 
-		System.err.println("Net runtime (" + prefix + description + "): "
-				+ result.getNetRuntime(TimeUnit.SECONDS) + "s");
+		System.err.println("Net runtime (" + prefix + description + "): " + result.getNetRuntime(TimeUnit.SECONDS)
+				+ "s");
 	}
 
 }

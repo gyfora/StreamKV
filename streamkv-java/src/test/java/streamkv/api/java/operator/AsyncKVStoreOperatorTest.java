@@ -61,38 +61,39 @@ public class AsyncKVStoreOperatorTest {
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> remove(3, "d")));
 		testHarness.processElement(new StreamRecord<>(selectorGet(4, 1, selector)));
 		testHarness.processElement(new StreamRecord<>(selectorGet(4, 2, selector)));
-		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> multiGet(5, "a",
-				(short) 5, 1L)));
-		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> multiGet(5, "d",
-				(short) 5, 2L)));
-		testHarness.processElement(new StreamRecord<>(selectorMultiGet(6, 1, 5, 2L, selector)));
-		testHarness.processElement(new StreamRecord<>(update(7, "z", 1, reducer)));
+		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> multiGet(5, "a", (short) 5,
+				(short) 0, 1L)));
+		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> multiGet(5, "d", (short) 5,
+				(short) 1, 2L)));
+		testHarness.processElement(new StreamRecord<>(selectorMultiGet(6, 1, 5, 0, 2L, selector)));
+		testHarness.processElement(new StreamRecord<>(update(7, "z", 1, sum)));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(8, "z")));
-		testHarness.processElement(new StreamRecord<>(update(7, "z", 10, reducer)));
+		testHarness.processElement(new StreamRecord<>(update(7, "z", 10, sum)));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(8, "z")));
 
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(1, "a", 1)));
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(1, "1", 2)));
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(2, "c", null)));
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(1, "a", 4)));
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(2, "1", 2)));
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(2, "c", 3)));
-		expectedOutput.add(new StreamRecord<>(KVOperation.removeRes(3, "c", 3)));
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(2, "c", null)));
-		expectedOutput.add(new StreamRecord<>(KVOperation.removeRes(3, "d", null)));
-		expectedOutput.add(new StreamRecord<>(KVOperation.selectorGetRes(4, 1, 2)));
-		expectedOutput.add(new StreamRecord<>(KVOperation.selectorGetRes(4, 2, null)));
-		expectedOutput.add(new StreamRecord<>(KVOperation.multiGetRes(5, "a", 4, (short) 5, 1L)));
-		expectedOutput.add(new StreamRecord<>(KVOperation.multiGetRes(5, "d", null, (short) 5, 2L)));
-		expectedOutput.add(new StreamRecord<>(KVOperation.selectorMultiGetRes(6, 1, 2, (short) 5, 2L)));
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(8, "z", 1)));
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(8, "z", 11)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(1, "a", 1)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(1, "1", 2)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(2, "c", null)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(1, "a", 4)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(2, "1", 2)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(2, "c", 3)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(3, "c", 3)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(2, "c", null)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(3, "d", null)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.skvRes(4, 1, 2)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.skvRes(4, 2, null)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.multiGetRes(5, "a", 4, (short) 5, (short) 0, 1L)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.multiGetRes(5, "d", null, (short) 5, (short) 1, 2L)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.selectorMultiGetRes(6, 1, 2, (short) 5, (short) 0, 2L)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(7, "z", 1)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(8, "z", 1)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(7, "z", 11)));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(8, "z", 11)));
 
-		TestHarnessUtil
-				.assertOutputEquals("Output was not correct.", expectedOutput, testHarness.getOutput());
+		TestHarnessUtil.assertOutputEquals("Output was not correct.", expectedOutput, testHarness.getOutput());
 	}
 
-	public static ReduceFunction<Integer> reducer = new ReduceFunction<Integer>() {
+	public static ReduceFunction<Integer> sum = new ReduceFunction<Integer>() {
 
 		private static final long serialVersionUID = 1L;
 
@@ -112,24 +113,22 @@ public class AsyncKVStoreOperatorTest {
 		}
 	};
 
-	public static KVOperation<String, Integer> update(int id, String key, Integer val,
-			ReduceFunction<Integer> reducer) {
+	public static KVOperation<String, Integer> update(int id, String key, Integer val, ReduceFunction<Integer> reducer) {
 		KVOperation<String, Integer> op = KVOperation.update(id, key, val);
 		op.reducer = reducer;
 		return op;
 	}
 
-	public static <X> KVOperation<String, Integer> selectorGet(int id, X record,
-			KeySelector<Object, String> selector) {
+	public static <X> KVOperation<String, Integer> selectorGet(int id, X record, KeySelector<Object, String> selector) {
 		KVOperation<String, Integer> op = KVOperation.<String, Integer> selectorGet(id, record);
 		op.keySelector = selector;
 		return op;
 	}
 
-	public static <X> KVOperation<String, Integer> selectorMultiGet(int id, X record, int nk, long opID,
+	public static <X> KVOperation<String, Integer> selectorMultiGet(int id, X record, int nk, int index, long opID,
 			KeySelector<Object, String> selector) {
-		KVOperation<String, Integer> op = KVOperation.<String, Integer> selectorMultiGet(id, record,
-				(short) nk, opID);
+		KVOperation<String, Integer> op = KVOperation.<String, Integer> selectorMultiGet(id, record, (short) nk,
+				(short) index, opID);
 		op.keySelector = selector;
 		return op;
 	}

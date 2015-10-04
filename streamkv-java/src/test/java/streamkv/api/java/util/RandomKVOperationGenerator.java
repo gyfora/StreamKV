@@ -39,11 +39,8 @@ public class RandomKVOperationGenerator {
 	private Random rnd = new Random();
 	@SuppressWarnings("rawtypes")
 	public static KVOperationSerializer<Integer, Integer> opSerializer = new KVOperationSerializer<>(
-			IntSerializer.INSTANCE,
-			IntSerializer.INSTANCE,
-			new HashMap<Short, ReduceFunction<Integer>>(),
-			ImmutableMap.of((short) 0, Tuple2.<TypeSerializer, KeySelector> of(new StringSerializer(), null)),
-			null);
+			IntSerializer.INSTANCE, IntSerializer.INSTANCE, new HashMap<Short, ReduceFunction<Integer>>(),
+			ImmutableMap.of((short) 0, Tuple2.<TypeSerializer, KeySelector> of(new StringSerializer(), null)), null);
 
 	public KVOperation<Integer, Integer>[] generate(int numOperations) {
 
@@ -74,41 +71,70 @@ public class RandomKVOperationGenerator {
 
 	public KVOperation<Integer, Integer> generateOp() {
 		KVOperationType type = KVOperation.types[rnd.nextInt(KVOperation.types.length)];
-
+		KVOperation<Integer, Integer> op;
 		switch (type) {
 		case GET:
-			return KVOperation.<Integer, Integer> get(rnd.nextInt(), rnd.nextInt());
-		case GETRES:
-			return KVOperation.<Integer, Integer> getRes(rnd.nextInt(), rnd.nextInt(), rnd.nextInt());
-		case MGET:
-			return KVOperation.<Integer, Integer> multiGet(rnd.nextInt(), rnd.nextInt(),
-					(short) rnd.nextInt(), rnd.nextLong());
-		case MGETRES:
-			return KVOperation.<Integer, Integer> multiGetRes(rnd.nextInt(), rnd.nextInt(), rnd.nextInt(),
-					(short) rnd.nextInt(), rnd.nextLong());
-		case PUT:
-			return KVOperation.<Integer, Integer> put(rnd.nextInt(), rnd.nextInt(), rnd.nextInt());
-		case REMOVE:
-			return KVOperation.<Integer, Integer> remove(rnd.nextInt(), rnd.nextInt());
-		case REMOVERES:
-			return KVOperation.<Integer, Integer> removeRes(rnd.nextInt(), rnd.nextInt(), rnd.nextInt());
-		case SGET:
-			return KVOperation.<Integer, Integer> selectorGet(0, ((Integer) rnd.nextInt()).toString());
-		case SGETRES:
-			return KVOperation.<Integer, Integer> selectorGetRes(0, ((Integer) rnd.nextInt()).toString(),
-					rnd.nextInt());
-		case SMGET:
-			return KVOperation.<Integer, Integer> selectorMultiGet(0, ((Integer) rnd.nextInt()).toString(),
-					(short) rnd.nextInt(), rnd.nextLong());
-		case SMGETRES:
-			return KVOperation.<Integer, Integer> selectorMultiGetRes(0,
-					((Integer) rnd.nextInt()).toString(), rnd.nextInt(), (short) rnd.nextInt(),
-					rnd.nextLong());
-		case UPDATE:
-			return KVOperation.update(0, rnd.nextInt(), rnd.nextInt());
-		default:
+			op = KVOperation.<Integer, Integer> get(rnd.nextInt(), rnd.nextInt());
 			break;
+		case KVRES:
+			op = KVOperation.<Integer, Integer> kvRes(rnd.nextInt(), rnd.nextInt(), rnd.nextInt());
+			break;
+		case MGET:
+			op = KVOperation.<Integer, Integer> multiGet(rnd.nextInt(), rnd.nextInt(), (short) rnd.nextInt(),
+					(short) rnd.nextInt(), rnd.nextLong());
+			break;
+		case MGETRES:
+			op = KVOperation.<Integer, Integer> multiGetRes(rnd.nextInt(), rnd.nextInt(), rnd.nextInt(),
+					(short) rnd.nextInt(), (short) rnd.nextInt(), rnd.nextLong());
+			break;
+		case PUT:
+			op = KVOperation.<Integer, Integer> put(rnd.nextInt(), rnd.nextInt(), rnd.nextInt());
+			break;
+		case REMOVE:
+			op = KVOperation.<Integer, Integer> remove(rnd.nextInt(), rnd.nextInt());
+			break;
+		case SGET:
+			op = KVOperation.<Integer, Integer> selectorGet(0, ((Integer) rnd.nextInt()).toString());
+			break;
+		case SGETRES:
+			op = KVOperation.<Integer, Integer> skvRes(0, ((Integer) rnd.nextInt()).toString(), rnd.nextInt());
+			break;
+		case SMGET:
+			op = KVOperation.<Integer, Integer> selectorMultiGet(0, ((Integer) rnd.nextInt()).toString(),
+					(short) rnd.nextInt(), (short) rnd.nextInt(), rnd.nextLong());
+			break;
+		case SKVRES:
+			op = KVOperation.<Integer, Integer> selectorMultiGetRes(0, ((Integer) rnd.nextInt()).toString(),
+					rnd.nextInt(), (short) rnd.nextInt(), (short) rnd.nextInt(), rnd.nextLong());
+			break;
+		case UPDATE:
+			op = KVOperation.update(0, rnd.nextInt(), rnd.nextInt());
+			break;
+		case LOCK:
+			op = KVOperation.lock(0, rnd.nextInt(), rnd.nextLong(), rnd.nextInt());
+			break;
+		case SUPDATE:
+			op = KVOperation.selectorUpdate(0, rnd.nextInt(), ((Integer) rnd.nextInt()).toString());
+			break;
+		default:
+			throw new RuntimeException("Error in generator");
 		}
-		throw new RuntimeException("Error in generator");
+
+		if (rnd.nextBoolean()) {
+			op.setOpID(rnd.nextLong());
+		}
+		if (rnd.nextBoolean()) {
+			op.setTransactionID(rnd.nextLong());
+			if (rnd.nextBoolean()) {
+				op.setDependentKey(rnd.nextInt());
+			}
+			if (rnd.nextBoolean()) {
+				op.setInputIDs(new long[] { rnd.nextLong(), rnd.nextLong() });
+			} else {
+				op.setInputIDs(new long[0]);
+			}
+		}
+
+		return op;
 	}
 }

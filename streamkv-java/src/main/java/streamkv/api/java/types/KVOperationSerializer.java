@@ -19,6 +19,7 @@ package streamkv.api.java.types;
 import static streamkv.api.java.types.KVOperation.KVOperationType.UPDATE;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
 import org.apache.flink.api.common.ExecutionConfig;
@@ -41,8 +42,8 @@ public final class KVOperationSerializer<K, V> extends TypeSerializer<KVOperatio
 	private Map<Short, ReduceFunction<V>> reducers;
 
 	public KVOperationSerializer(TypeSerializer<K> keySerializer, TypeSerializer<V> valueSerializer,
-			Map<Short, ReduceFunction<V>> reducers,
-			Map<Short, Tuple2<TypeSerializer, KeySelector>> selectors, ExecutionConfig config) {
+			Map<Short, ReduceFunction<V>> reducers, Map<Short, Tuple2<TypeSerializer, KeySelector>> selectors,
+			ExecutionConfig config) {
 		this.keySerializer = keySerializer;
 		this.valueSerializer = valueSerializer;
 		this.reducers = reducers;
@@ -56,23 +57,33 @@ public final class KVOperationSerializer<K, V> extends TypeSerializer<KVOperatio
 
 		to.type = from.type;
 		to.queryID = from.queryID;
+		to.isPartOfTransaction = from.isPartOfTransaction;
+		if (to.isPartOfTransaction) {
+			to.transactionID = from.transactionID;
+			to.dependentKey = copyWithReuse(from.dependentKey, to.dependentKey, keySerializer);
+			to.inputOperationIDs = Arrays.copyOf(from.inputOperationIDs, from.inputOperationIDs.length);
+		}
+		to.hasOpId = from.hasOpId;
+		to.operationID = from.operationID;
+		to.numOpsForKey = from.numOpsForKey;
 
 		// copy key/record
 		switch (type) {
 		case PUT:
-		case GETRES:
-		case REMOVERES:
+		case KVRES:
 		case UPDATE:
 		case MGETRES:
 		case GET:
 		case REMOVE:
 		case MGET:
+		case LOCK:
 			to.key = copyWithReuse(from.key, to.key, keySerializer);
 			break;
 		case SGET:
 		case SMGET:
 		case SGETRES:
-		case SMGETRES:
+		case SKVRES:
+		case SUPDATE:
 			to.record = copyWithReuse(from.record, to.record, selectors.get(from.queryID).f0);
 			break;
 		default:
@@ -82,12 +93,12 @@ public final class KVOperationSerializer<K, V> extends TypeSerializer<KVOperatio
 		// copy value
 		switch (type) {
 		case PUT:
-		case GETRES:
-		case REMOVERES:
+		case KVRES:
 		case UPDATE:
 		case MGETRES:
 		case SGETRES:
-		case SMGETRES:
+		case SKVRES:
+		case SUPDATE:
 			to.value = copyWithReuse(from.value, to.value, valueSerializer);
 			break;
 		default:
@@ -99,9 +110,9 @@ public final class KVOperationSerializer<K, V> extends TypeSerializer<KVOperatio
 		case MGET:
 		case MGETRES:
 		case SMGET:
-		case SMGETRES:
-			to.operationID = from.operationID;
+		case SKVRES:
 			to.numKeys = from.numKeys;
+			to.index = from.index;
 			break;
 		default:
 			break;
@@ -120,22 +131,38 @@ public final class KVOperationSerializer<K, V> extends TypeSerializer<KVOperatio
 		target.writeByte(indexOf(KVOperation.types, op.type));
 		target.writeShort(op.queryID);
 
+		target.writeBoolean(op.hasOpId);
+		if (op.hasOpId) {
+			target.writeLong(op.operationID);
+		}
+
+		target.writeBoolean(op.isPartOfTransaction);
+		if (op.isPartOfTransaction) {
+			target.writeLong(op.transactionID);
+			serializeWithNull(op.dependentKey, keySerializer, target);
+			target.writeByte(op.inputOperationIDs.length);
+			for (long id : op.inputOperationIDs) {
+				target.writeLong(id);
+			}
+		}
+
 		// copy key/record
 		switch (op.type) {
 		case PUT:
-		case GETRES:
-		case REMOVERES:
+		case KVRES:
 		case UPDATE:
 		case MGETRES:
 		case GET:
 		case REMOVE:
 		case MGET:
+		case LOCK:
 			keySerializer.serialize(op.key, target);
 			break;
 		case SGET:
 		case SMGET:
 		case SGETRES:
-		case SMGETRES:
+		case SKVRES:
+		case SUPDATE:
 			selectors.get(op.queryID).f0.serialize(op.record, target);
 			break;
 		default:
@@ -145,13 +172,13 @@ public final class KVOperationSerializer<K, V> extends TypeSerializer<KVOperatio
 		// copy value
 		switch (op.type) {
 		case PUT:
-		case GETRES:
-		case REMOVERES:
+		case KVRES:
 		case UPDATE:
 		case MGETRES:
 		case SGETRES:
-		case SMGETRES:
-			serializeValWithNull(op, target);
+		case SKVRES:
+		case SUPDATE:
+			serializeWithNull(op.value, valueSerializer, target);
 			break;
 		default:
 			break;
@@ -162,12 +189,16 @@ public final class KVOperationSerializer<K, V> extends TypeSerializer<KVOperatio
 		case MGET:
 		case MGETRES:
 		case SMGET:
-		case SMGETRES:
-			target.writeLong(op.operationID);
+		case SKVRES:
 			target.writeShort(op.numKeys);
+			target.writeShort(op.index);
 			break;
 		default:
 			break;
+		}
+
+		if (op.type == KVOperationType.LOCK) {
+			target.writeByte(op.numOpsForKey);
 		}
 	}
 
@@ -177,23 +208,41 @@ public final class KVOperationSerializer<K, V> extends TypeSerializer<KVOperatio
 
 		op.type = KVOperation.types[source.readByte()];
 		op.queryID = source.readShort();
+		if (source.readBoolean()) {
+			op.hasOpId = true;
+			op.operationID = source.readLong();
+		} else {
+			op.hasOpId = false;
+		}
+		if (source.readBoolean()) {
+			op.isPartOfTransaction = true;
+			op.transactionID = source.readLong();
+			op.dependentKey = deserializeWithNull(op.dependentKey, keySerializer, source);
+			op.inputOperationIDs = new long[source.readByte()];
+			for (int i = 0; i < op.inputOperationIDs.length; i++) {
+				op.inputOperationIDs[i] = source.readLong();
+			}
+		} else {
+			op.isPartOfTransaction = false;
+		}
 
 		// copy key/record
 		switch (op.type) {
 		case PUT:
-		case GETRES:
-		case REMOVERES:
+		case KVRES:
 		case UPDATE:
 		case MGETRES:
 		case GET:
 		case REMOVE:
 		case MGET:
+		case LOCK:
 			op.key = deserializeWithReuse(source, op.key, keySerializer);
 			break;
 		case SGET:
 		case SMGET:
 		case SGETRES:
-		case SMGETRES:
+		case SKVRES:
+		case SUPDATE:
 			Tuple2<TypeSerializer, KeySelector> selector = selectors.get(op.queryID);
 			op.keySelector = selector.f1;
 			op.record = deserializeWithReuse(source, op.record, selector.f0);
@@ -205,13 +254,13 @@ public final class KVOperationSerializer<K, V> extends TypeSerializer<KVOperatio
 		// copy value
 		switch (op.type) {
 		case PUT:
-		case GETRES:
-		case REMOVERES:
+		case KVRES:
 		case UPDATE:
 		case MGETRES:
 		case SGETRES:
-		case SMGETRES:
-			op.value = deserializeValWithNull(op.value, source);
+		case SKVRES:
+		case SUPDATE:
+			op.value = deserializeWithNull(op.value, valueSerializer, source);
 			break;
 		default:
 			break;
@@ -222,35 +271,39 @@ public final class KVOperationSerializer<K, V> extends TypeSerializer<KVOperatio
 		case MGET:
 		case MGETRES:
 		case SMGET:
-		case SMGETRES:
-			op.operationID = source.readLong();
+		case SKVRES:
 			op.numKeys = source.readShort();
+			op.index = source.readShort();
 			break;
 		default:
 			break;
 		}
 
-		if (op.type == UPDATE) {
+		if (op.type == KVOperationType.LOCK) {
+			op.numOpsForKey = source.readByte();
+		}
+
+		if (op.type == UPDATE || op.type == KVOperationType.SUPDATE) {
 			op.reducer = reducers.get(op.queryID);
 		}
 
 		return op;
 	}
 
-	private void serializeValWithNull(KVOperation<K, V> op, DataOutputView target) throws IOException {
-		boolean hasVal = op.value != null;
+	private <X> void serializeWithNull(X val, TypeSerializer<X> serializer, DataOutputView target) throws IOException {
+		boolean hasVal = val != null;
 		target.writeBoolean(hasVal);
 		if (hasVal) {
-			valueSerializer.serialize(op.value, target);
+			serializer.serialize(val, target);
 		}
 	}
 
-	private V deserializeValWithNull(V reuse, DataInputView source) throws IOException {
+	private <X> X deserializeWithNull(X reuse, TypeSerializer<X> serializer, DataInputView source) throws IOException {
 		if (source.readBoolean()) {
 			if (reuse == null) {
-				return valueSerializer.deserialize(source);
+				return serializer.deserialize(source);
 			} else {
-				return valueSerializer.deserialize(reuse, source);
+				return serializer.deserialize(reuse, source);
 			}
 		} else {
 			return null;
@@ -339,8 +392,7 @@ public final class KVOperationSerializer<K, V> extends TypeSerializer<KVOperatio
 		if (!keySerializer.equals(that.keySerializer)) {
 			return false;
 		}
-		if (valueSerializer != null ? !valueSerializer.equals(that.valueSerializer)
-				: that.valueSerializer != null) {
+		if (valueSerializer != null ? !valueSerializer.equals(that.valueSerializer) : that.valueSerializer != null) {
 			return false;
 		}
 		if (selectors != null ? !selectors.equals(that.selectors) : that.selectors != null) {

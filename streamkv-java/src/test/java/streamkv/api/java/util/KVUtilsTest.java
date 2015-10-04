@@ -64,8 +64,7 @@ public class KVUtilsTest {
 
 	@Test
 	public void toUpdateTest() throws Exception {
-		RichMapFunction<Tuple2<Integer, String>, KVOperation<Integer, String>> toUpdate = new KVUtils.ToUpdate<>(
-				3);
+		RichMapFunction<Tuple2<Integer, String>, KVOperation<Integer, String>> toUpdate = new KVUtils.ToUpdate<>(3);
 		toUpdate.open(null);
 
 		assertEquals(KVOperation.update(3, 2, "a"), toUpdate.map(Tuple2.of(2, "a")));
@@ -136,12 +135,11 @@ public class KVUtilsTest {
 		toMGet.flatMap(new Integer[] { 1, 2, 3 }, out);
 
 		long opID = out.elements.get(0).operationID;
-
 		assertEquals(
 				out.elements,
-				Arrays.asList(KVOperation.multiGet(2, 1, (short) 3, opID),
-						KVOperation.multiGet(2, 2, (short) 3, opID),
-						KVOperation.multiGet(2, 3, (short) 3, opID)));
+				Arrays.asList(KVOperation.multiGet(2, 1, (short) 3, (short) 0, opID),
+						KVOperation.multiGet(2, 2, (short) 3, (short) 1, opID),
+						KVOperation.multiGet(2, 3, (short) 3, (short) 2, opID)));
 
 		try {
 			toMGet.flatMap(new Integer[] { 1, null, 3 }, out);
@@ -159,8 +157,7 @@ public class KVUtilsTest {
 
 	@Test
 	public void toSMGetTest() throws Exception {
-		RichFlatMapFunction<Object, KVOperation<Integer, String>> toSMGet = new KVUtils.ToSMGet<Integer, String>(
-				2);
+		RichFlatMapFunction<Object, KVOperation<Integer, String>> toSMGet = new KVUtils.ToSMGet<Integer, String>(2);
 		toSMGet.open(null);
 
 		MyCollector out = new MyCollector();
@@ -171,8 +168,8 @@ public class KVUtilsTest {
 
 		assertEquals(
 				out.elements,
-				Arrays.asList(KVOperation.selectorMultiGet(2, "a", (short) 2, opID),
-						KVOperation.selectorMultiGet(2, "b", (short) 2, opID)));
+				Arrays.asList(KVOperation.selectorMultiGet(2, "a", (short) 2, (short) 0, opID),
+						KVOperation.selectorMultiGet(2, "b", (short) 2, (short) 1, opID)));
 		try {
 			toSMGet.flatMap(new Integer[] { 1, null, 3 }, out);
 			fail();
@@ -219,9 +216,8 @@ public class KVUtilsTest {
 	public void keySelectorTests() throws Exception {
 		assertEquals((Integer) 2,
 				(Integer) (new KVUtils.KVOpKeySelector<Integer, Object>()).getKey(KVOperation.get(5, 2)));
-		assertEquals((Long) 6L,
-				(Long) (new KVUtils.OperationIDSelector<Integer, Object>()).getKey(KVOperation.multiGet(5, 2,
-						(short) 2, 6)));
+		assertEquals((Long) 6L, (Long) (new KVUtils.OperationIDSelector<Integer, Object>()).getKey(KVOperation
+				.multiGet(5, 2, (short) 2, (short) 0, 6)));
 	}
 
 	@Test
@@ -229,8 +225,8 @@ public class KVUtilsTest {
 		RichMapFunction<KVOperation<Integer, String>, Tuple2<Integer, String>> toKV = new KVUtils.ToKV<>();
 		toKV.open(null);
 
-		assertEquals(Tuple2.of(2, "b"), toKV.map(KVOperation.getRes(5, 2, "b")));
-		assertEquals(Tuple2.of(6, "c"), toKV.map(KVOperation.removeRes(2, 6, "c")));
+		assertEquals(Tuple2.of(2, "b"), toKV.map(KVOperation.kvRes(5, 2, "b")));
+		assertEquals(Tuple2.of(6, "c"), toKV.map(KVOperation.kvRes(2, 6, "c")));
 	}
 
 	@Test
@@ -238,14 +234,13 @@ public class KVUtilsTest {
 		RichMapFunction<KVOperation<Integer, String>, Tuple2<Object, String>> toSKV = new KVUtils.ToSKV<>();
 		toSKV.open(null);
 
-		assertEquals(Tuple2.of(2, "a"), toSKV.map(KVOperation.<Integer, String> selectorGetRes(5, 2, "a")));
-		assertEquals(Tuple2.of("a", "b"),
-				toSKV.map(KVOperation.<Integer, String> selectorGetRes(2, "a", "b")));
+		assertEquals(Tuple2.of(2, "a"), toSKV.map(KVOperation.<Integer, String> skvRes(5, 2, "a")));
+		assertEquals(Tuple2.of("a", "b"), toSKV.map(KVOperation.<Integer, String> skvRes(2, "a", "b")));
 	}
 
 	@Test
 	public void queryIDOutputSelectorTest() {
-		OutputSelector<KVOperation<String, Integer>> selector = new KVUtils.IDOutputSelector<>();
+		OutputSelector<KVOperation<String, Integer>> selector = new KVUtils.StoreOutputSplitter<>();
 
 		assertEquals(Arrays.asList("2"), selector.select(KVOperation.put(2, "a", 8)));
 		assertEquals(Arrays.asList("6"), selector.select(KVOperation.<String, Integer> get(6, "a")));

@@ -30,13 +30,14 @@ import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.operators.StreamMap;
 import org.apache.flink.util.Collector;
 
 import streamkv.api.java.KVStore;
 import streamkv.api.java.types.KVOperation;
-import streamkv.api.java.types.NullHandlerTypeInfo;
 import streamkv.api.java.types.KVOperation.KVOperationType;
+import streamkv.api.java.types.NullHandlerTypeInfo;
 
 import com.google.common.base.Preconditions;
 
@@ -108,6 +109,32 @@ public class KVUtils {
 			reuse = new KVOperation<>();
 			reuse.queryID = (short) index;
 			reuse.type = KVOperationType.UPDATE;
+		}
+	}
+
+	public static class ToSUpdate<K, V> extends RichMapFunction<Tuple2<K, V>, KVOperation<K, V>> {
+		private static final long serialVersionUID = 1L;
+		private int index;
+		private KVOperation<K, V> reuse;
+
+		public ToSUpdate(int index) {
+			this.index = index;
+		}
+
+		@Override
+		public KVOperation<K, V> map(Tuple2<K, V> next) throws Exception {
+			Preconditions.checkNotNull(next.f0, "Key must not be null");
+			Preconditions.checkNotNull(next.f1, "Value must not be null");
+			reuse.record = next.f0;
+			reuse.value = next.f1;
+			return reuse;
+		}
+
+		@Override
+		public void open(Configuration c) {
+			reuse = new KVOperation<>();
+			reuse.queryID = (short) index;
+			reuse.type = KVOperationType.SUPDATE;
 		}
 	}
 
@@ -240,10 +267,11 @@ public class KVUtils {
 			}
 			reuse.numKeys = (short) keys.length;
 			reuse.operationID = rnd.nextLong();
+			short c = 0;
 			for (K key : keys) {
 				Preconditions.checkNotNull(key, "Key must not be null");
-
 				reuse.key = key;
+				reuse.index = c++;
 				out.collect(reuse);
 			}
 		}
@@ -252,6 +280,7 @@ public class KVUtils {
 		public void open(Configuration conf) {
 			reuse = new KVOperation<>();
 			reuse.queryID = (short) index;
+			reuse.hasOpId = true;
 			reuse.type = KVOperationType.MGET;
 			rnd = new Random();
 		}
@@ -277,9 +306,11 @@ public class KVUtils {
 			}
 			reuse.numKeys = (short) keys.length;
 			reuse.operationID = rnd.nextLong();
+			short c = 0;
 			for (Object key : keys) {
 				Preconditions.checkNotNull(key, "Key must not be null");
 				reuse.record = key;
+				reuse.index = c++;
 				out.collect(reuse);
 			}
 		}
@@ -289,6 +320,7 @@ public class KVUtils {
 			reuse = new KVOperation<>();
 			reuse.queryID = (short) index;
 			reuse.type = KVOperationType.SMGET;
+			reuse.hasOpId = true;
 			rnd = new Random();
 		}
 	}
@@ -303,19 +335,23 @@ public class KVUtils {
 		}
 	}
 
-	public static class IDOutputSelector<K, V> implements OutputSelector<KVOperation<K, V>> {
+	public static class StoreOutputSplitter<K, V> implements OutputSelector<KVOperation<K, V>> {
 		private static final long serialVersionUID = 1L;
 		List<String> selected = Arrays.asList("0");
 
 		@Override
 		public Iterable<String> select(KVOperation<K, V> value) {
-			selected.set(0, ((Short) value.queryID).toString());
+			if (value.dependentKey != null) {
+				selected.set(0, "back");
+			} else {
+				selected.set(0, ((Short) value.queryID).toString());
+			}
 			return selected;
 		}
 	}
 
-	public static <I, O> DataStream<O> nonCopyingMap(DataStream<I> input, TypeInformation<O> outType,
-			MapFunction<I, O> mapper) {
+	public static <I, O> SingleOutputStreamOperator<O, ?> nonCopyingMap(DataStream<I> input,
+			TypeInformation<O> outType, MapFunction<I, O> mapper) {
 		return input.transform("NonCopyingMap", outType, new NonCopyingMap<>(mapper));
 	}
 
@@ -331,5 +367,81 @@ public class KVUtils {
 	public static <K, V> TypeInformation<Tuple2<K, V>> getKVType(TypeInformation<K> keyType,
 			TypeInformation<V> valueType) {
 		return new TupleTypeInfo<>(keyType, new NullHandlerTypeInfo<>(valueType));
+	}
+
+	public static class ApplyOpKeySelector<K, V> implements KeySelector<KVOperation<K, V>, K> {
+
+		private static final long serialVersionUID = 1L;
+
+		@Override
+		public K getKey(KVOperation<K, V> op) throws Exception {
+			if (op.type.isResult && op.dependentKey != null) {
+				return op.dependentKey;
+			} else {
+				return getK(op);
+			}
+		}
+
+	}
+
+	public static class NoOpMap<K, V> implements MapFunction<KVOperation<K, V>, KVOperation<K, V>> {
+		private static final long serialVersionUID = 1;
+
+		@Override
+		public KVOperation<K, V> map(KVOperation<K, V> value) throws Exception {
+			return value;
+		}
+	}
+
+	public static class DependentKeySelector<K, V> implements KeySelector<KVOperation<K, V>, K> {
+
+		private static final long serialVersionUID = 1L;
+
+		@Override
+		public K getKey(KVOperation<K, V> value) throws Exception {
+			return value.dependentKey;
+		}
+
+	}
+
+	public static <K, V> K getK(KVOperation<K, V> op) throws Exception {
+		switch (op.type) {
+		case PUT:
+		case UPDATE:
+		case GET:
+		case MGET:
+		case REMOVE:
+		case LOCK:
+		case KVRES:
+		case MGETRES:
+			return op.key;
+		case SGET:
+		case SGETRES:
+		case SMGET:
+		case SKVRES:
+		case SUPDATE:
+			return op.keySelector.getKey(op.record);
+		default:
+			throw new UnsupportedOperationException("Not implemented yet");
+		}
+
+	}
+
+	@SuppressWarnings("rawtypes")
+	public static class RecordSelector<K, V> implements KeySelector<KVOperation<K, V>, K> {
+
+		private static final long serialVersionUID = 8123229428587687470L;
+		private KeySelector selector;
+
+		public RecordSelector(KeySelector ks) {
+			this.selector = ks;
+		}
+
+		@SuppressWarnings("unchecked")
+		@Override
+		public K getKey(KVOperation<K, V> value) throws Exception {
+			return (K) selector.getKey(value.record);
+		}
+
 	}
 }

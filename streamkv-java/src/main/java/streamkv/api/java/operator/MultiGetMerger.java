@@ -57,7 +57,6 @@ public class MultiGetMerger<K, V> extends RichFlatMapFunction<KVOperation<K, V>,
 		Tuple2<Integer, Tuple2[]> partial = merged.value();
 		Object key = next.type == KVOperationType.MGETRES ? next.key : next.record;
 		short numKeys = next.numKeys;
-
 		if (numKeys == 0) {
 			throw new RuntimeException("Number of keys must be at least 1");
 		}
@@ -65,11 +64,10 @@ public class MultiGetMerger<K, V> extends RichFlatMapFunction<KVOperation<K, V>,
 		if (partial.f0 == -1) {
 			partial.f0 = (int) numKeys - 1;
 			partial.f1 = new Tuple2[numKeys];
-			partial.f1[0] = Tuple2.of(key, next.value);
-
+			partial.f1[next.index] = Tuple2.of(key, next.value);
 		} else {
 			partial.f0 -= 1;
-			partial.f1[numKeys - partial.f0 - 1] = Tuple2.of(key, next.value);
+			partial.f1[next.index] = Tuple2.of(key, next.value);
 		}
 
 		if (partial.f0 == 0) {
@@ -83,8 +81,7 @@ public class MultiGetMerger<K, V> extends RichFlatMapFunction<KVOperation<K, V>,
 
 	@Override
 	public void open(Configuration conf) throws IOException {
-		merged = getRuntimeContext().getOperatorState("merged",
-				Tuple2.<Integer, Tuple2[]> of(-1, new Tuple2[0]), true,
+		merged = getRuntimeContext().getOperatorState("merged", Tuple2.<Integer, Tuple2[]> of(-1, new Tuple2[0]), true,
 				new MergeStateCheckpointer<>(keySerializer, valueSerializer));
 	}
 }

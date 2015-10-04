@@ -22,6 +22,7 @@ import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple1;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -64,8 +65,7 @@ public class StreamKVExample {
 		KVStore<String, Double> store = KVStore.withOrdering(OperationOrdering.ARRIVALTIME);
 
 		// Read and parse the input stream from the text socket
-		DataStream<Tuple2<String, String>> inputStream = env.socketTextStream("localhost", 9999).flatMap(
-				new Parser());
+		DataStream<Tuple2<String, String>> inputStream = env.socketTextStream("localhost", 9999).flatMap(new Parser());
 
 		// Convert the put stream to Tuple2-s
 		DataStream<Tuple2<String, Double>> initialBalance = selectOp(inputStream, "put").map(
@@ -95,6 +95,29 @@ public class StreamKVExample {
 					}
 				}));
 
+		Query<Tuple2<String, Double>> updateQ = store.updateWithKeySelector(
+				selectOp(inputStream, "add").map(new MapFunction<String, Tuple2<String, Double>>() {
+
+					@Override
+					public Tuple2<String, Double> map(String in) throws Exception {
+						String[] split = in.split(",");
+						return Tuple2.of(split[0], Double.parseDouble(split[1]));
+					}
+
+				}), new ReduceFunction<Double>() {
+
+					@Override
+					public Double reduce(Double arg0, Double arg1) throws Exception {
+						return arg0 + arg1;
+					}
+				}, new KeySelector<String, String>() {
+
+					@Override
+					public String getKey(String value) throws Exception {
+						return value.split("a")[0];
+					}
+				});
+
 		// Parse the transfer stream to (from, to, amount)
 		DataStream<Tuple3<String, String, Double>> transferStream = selectOp(inputStream, "transfer").map(
 				new MapFunction<String, Tuple3<String, String, Double>>() {
@@ -106,13 +129,14 @@ public class StreamKVExample {
 					}
 				});
 
-		// Apply transfer by subtracting from the sender and adding to the receiver
-		store.update(transferStream
-				.flatMap(new FlatMapFunction<Tuple3<String, String, Double>, Tuple2<String, Double>>() {
+		// Apply transfer by subtracting from the sender and adding to the
+		// receiver
+		store.update(
+				transferStream.flatMap(new FlatMapFunction<Tuple3<String, String, Double>, Tuple2<String, Double>>() {
 
 					@Override
-					public void flatMap(Tuple3<String, String, Double> in,
-							Collector<Tuple2<String, Double>> out) throws Exception {
+					public void flatMap(Tuple3<String, String, Double> in, Collector<Tuple2<String, Double>> out)
+							throws Exception {
 						out.collect(Tuple2.of(in.f0, -1 * in.f2));
 						out.collect(Tuple2.of(in.f1, in.f2));
 					}
@@ -121,6 +145,7 @@ public class StreamKVExample {
 		// Print the query outputs
 		balanceQ.getOutput().print();
 		mBalanceQ.getOutput().map(new ArrayToString()).print();
+		updateQ.getOutput().print();
 
 		// Execute the program
 		env.execute();

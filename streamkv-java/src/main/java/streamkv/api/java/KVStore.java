@@ -20,14 +20,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.IterativeDataStream;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.apache.flink.util.Collector;
 
-import streamkv.api.java.kvstorebuilder.JavaKVStoreBuilder;
 import streamkv.api.java.kvstorebuilder.AbstractKVStoreBuilder;
+import streamkv.api.java.kvstorebuilder.JavaKVStoreBuilder;
+import streamkv.api.java.operation.Operation;
+import streamkv.api.java.types.KVOperation;
 import streamkv.api.java.util.KVUtils;
 
 /**
@@ -59,6 +64,15 @@ public class KVStore<K, V> {
 		this.storeBuilder = new JavaKVStoreBuilder<>(ordering);
 	}
 
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	public void setReducerForQuery(int qid, ReduceFunction reducer) {
+		this.storeBuilder.getKVOperationType().registerReducer(qid, reducer);
+	}
+
+	public void setTypeInfo(TypeInformation<K> keyType, TypeInformation<V> valueType) {
+		storeBuilder.setInKVType(keyType, valueType);
+	}
+
 	/**
 	 * Put the elements from the given tuple stream into the key-value store.
 	 * 
@@ -67,7 +81,7 @@ public class KVStore<K, V> {
 	 */
 	public void put(DataStream<Tuple2<K, V>> stream) {
 		int qid = storeBuilder.nextID();
-		storeBuilder.put(stream.map(new KVUtils.ToPut<K, V>(qid)), qid);
+		storeBuilder.put(stream.map(new KVUtils.ToPut<K, V>(qid)).setParallelism(stream.getParallelism()), qid);
 	}
 
 	/**
@@ -76,14 +90,31 @@ public class KVStore<K, V> {
 	 * this works like a put operation and creates a new KV entry for the given
 	 * key.
 	 * 
+	 * Returns the updated value.
+	 * 
 	 * @param stream
 	 *            Stream of {@link Tuple2}s representing the (K,V) pairs.
 	 * @param reducer
 	 *            The reducer used to update the elements.
 	 */
-	public void update(DataStream<Tuple2<K, V>> stream, ReduceFunction<V> reducer) {
+	public Query<Tuple2<K, V>> update(DataStream<Tuple2<K, V>> stream, ReduceFunction<V> reducer) {
 		int qid = storeBuilder.nextID();
-		storeBuilder.update(stream.map(new KVUtils.ToUpdate<K, V>(qid)), reducer, qid);
+		storeBuilder.update(stream.map(new KVUtils.ToUpdate<K, V>(qid)).setParallelism(stream.getParallelism()),
+				reducer, qid);
+		Query<Tuple2<K, V>> q = new Query<Tuple2<K, V>>(qid, storeBuilder);
+		queries.add(q);
+		return q;
+	}
+
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	public <X> Query<Tuple2<X, V>> updateWithKeySelector(DataStream<Tuple2<X, V>> stream, ReduceFunction<V> reducer,
+			KeySelector<X, K> selector) {
+		int qid = storeBuilder.nextID();
+		storeBuilder.selectorUpdate((SingleOutputStreamOperator) stream.map(new KVUtils.ToSUpdate<X, V>(qid))
+				.setParallelism(stream.getParallelism()), selector, reducer, qid);
+		Query<Tuple2<X, V>> q = new Query<Tuple2<X, V>>(qid, storeBuilder);
+		queries.add(q);
+		return q;
 	}
 
 	/**
@@ -95,7 +126,7 @@ public class KVStore<K, V> {
 	 */
 	public Query<Tuple2<K, V>> get(DataStream<K> stream) {
 		int qid = storeBuilder.nextID();
-		storeBuilder.get(stream.map(new KVUtils.ToGet<K, V>(qid)), qid);
+		storeBuilder.get(stream.map(new KVUtils.ToGet<K, V>(qid)).setParallelism(stream.getParallelism()), qid);
 		Query<Tuple2<K, V>> q = new Query<Tuple2<K, V>>(qid, storeBuilder);
 		queries.add(q);
 		return q;
@@ -110,7 +141,7 @@ public class KVStore<K, V> {
 	 */
 	public Query<Tuple2<K, V>> remove(DataStream<K> stream) {
 		int qid = storeBuilder.nextID();
-		storeBuilder.remove(stream.map(new KVUtils.ToRemove<K, V>(qid)), qid);
+		storeBuilder.remove(stream.map(new KVUtils.ToRemove<K, V>(qid)).setParallelism(stream.getParallelism()), qid);
 		Query<Tuple2<K, V>> q = new Query<Tuple2<K, V>>(qid, storeBuilder);
 		queries.add(q);
 		return q;
@@ -130,7 +161,9 @@ public class KVStore<K, V> {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public <X> Query<Tuple2<X, V>> getWithKeySelector(DataStream<X> stream, KeySelector<X, K> keySelector) {
 		int qid = storeBuilder.nextID();
-		storeBuilder.selectorGet(((DataStream) stream).map(new KVUtils.ToSGet<K, V>(qid)), keySelector, qid);
+		storeBuilder.selectorGet(
+				((DataStream) stream).map(new KVUtils.ToSGet<K, V>(qid)).setParallelism(stream.getParallelism()),
+				keySelector, qid);
 		Query<Tuple2<X, V>> q = new Query<Tuple2<X, V>>(qid, storeBuilder);
 		queries.add(q);
 		return q;
@@ -146,7 +179,8 @@ public class KVStore<K, V> {
 	 */
 	public Query<Tuple2<K, V>[]> multiGet(DataStream<K[]> stream) {
 		int qid = storeBuilder.nextID();
-		storeBuilder.multiGet(stream.flatMap(new KVUtils.ToMGet<K, V>(qid)), qid);
+		storeBuilder.multiGet(stream.flatMap(new KVUtils.ToMGet<K, V>(qid)).setParallelism(stream.getParallelism()),
+				qid);
 		Query<Tuple2<K, V>[]> q = new Query<Tuple2<K, V>[]>(qid, storeBuilder);
 		queries.add(q);
 		return q;
@@ -165,12 +199,35 @@ public class KVStore<K, V> {
 	 * @return The resulting {@link Query}.
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	public <X> Query<Tuple2<X, V>[]> multiGetWithKeySelector(DataStream<X[]> stream,
-			KeySelector<X, K> keySelector) {
+	public <X> Query<Tuple2<X, V>[]> multiGetWithKeySelector(DataStream<X[]> stream, KeySelector<X, K> keySelector) {
 		int qid = storeBuilder.nextID();
-		storeBuilder.selectorMultiGet(((DataStream) stream).flatMap(new KVUtils.ToSMGet<K, V>(qid)),
+		storeBuilder.selectorMultiGet(
+				((DataStream) stream).flatMap(new KVUtils.ToSMGet<K, V>(qid)).setParallelism(stream.getParallelism()),
 				keySelector, qid);
 		Query<Tuple2<X, V>[]> q = new Query<Tuple2<X, V>[]>(qid, storeBuilder);
+		queries.add(q);
+		return q;
+	}
+
+	/**
+	 * Applies a stream of high level {@link Operation}s to the {@link KVStore}.
+	 * 
+	 */
+	@SuppressWarnings({ "unchecked", "serial" })
+	public Query<KVOperation<K, V>> applyOperation(DataStream<? extends Operation> opStream) {
+		final int qid = storeBuilder.nextID();
+		storeBuilder.applyOperation(
+				((DataStream<Operation>) opStream).flatMap(new FlatMapFunction<Operation, KVOperation<K, V>>() {
+
+					@SuppressWarnings("rawtypes")
+					@Override
+					public void flatMap(Operation op, Collector<KVOperation<K, V>> out) throws Exception {
+						for (KVOperation kvOp : Operation.createTransaction(qid, op)) {
+							out.collect(kvOp);
+						}
+					}
+				}).setParallelism(opStream.getParallelism()), qid);
+		Query<KVOperation<K, V>> q = new Query<KVOperation<K, V>>(qid, storeBuilder);
 		queries.add(q);
 		return q;
 	}
@@ -193,10 +250,10 @@ public class KVStore<K, V> {
 	 * (governed by the standard Flink partial ordering guarantees). While this
 	 * implementation provides maximal performance it does not provide any
 	 * deterministic processing guarantee.</li>
-	 * <li><b>TIMESTAMP</b> : All operations are executed in time order. Time can be
-	 * ingress time by default or custom event timestamps and watermarks must be
-	 * provided by the source implementations. There is no ordering guarantee
-	 * among elements with the same timestamps.
+	 * <li><b>TIMESTAMP</b> : All operations are executed in time order. Time
+	 * can be ingress time by default or custom event timestamps and watermarks
+	 * must be provided by the source implementations. There is no ordering
+	 * guarantee among elements with the same timestamps.
 	 * 
 	 * <p>
 	 * This implementation provides deterministic processing guarantees given

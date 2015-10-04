@@ -73,13 +73,13 @@ class ScalaKVStore[K: TypeInformation: ClassTag, V: TypeInformation: ClassTag](o
 
   def put(stream: DataStream[(K, V)]) = {
     val qid = storeBuilder.nextID
-    val opstream = stream.map(in => KVOperation.put(qid, in._1, in._2))
+    val opstream = stream.map(in => KVOperation.put(qid, in._1, in._2)).setParallelism(stream.getParallelism)
       .getJavaStream.asInstanceOf[SingleOutputStreamOperator[KVOperation[K, V], _]]
     storeBuilder.put(opstream, qid)
   }
   def update(stream: DataStream[(K, V)])(reduceFun: (V, V) => V) = {
     val qid = storeBuilder.nextID
-    val opstream = stream.map(in => KVOperation.update(qid, in._1, in._2))
+    val opstream = stream.map(in => KVOperation.update(qid, in._1, in._2)).setParallelism(stream.getParallelism)
       .getJavaStream.asInstanceOf[SingleOutputStreamOperator[KVOperation[K, V], _]]
     val reducer = new ReduceFunction[V] {
       def reduce(v1: V, v2: V) = { reduceFun(v1, v2) }
@@ -88,7 +88,7 @@ class ScalaKVStore[K: TypeInformation: ClassTag, V: TypeInformation: ClassTag](o
   }
   def get(stream: DataStream[K]) = {
     val qid = storeBuilder.nextID
-    val opstream = stream.map(in => KVOperation.get(qid, in))
+    val opstream = stream.map(in => KVOperation.get(qid, in)).setParallelism(stream.getParallelism)
       .getJavaStream.asInstanceOf[SingleOutputStreamOperator[KVOperation[K, V], _]]
     storeBuilder.get(opstream, qid)
     val q = new Query[(K, V)](qid, storeBuilder)
@@ -97,7 +97,7 @@ class ScalaKVStore[K: TypeInformation: ClassTag, V: TypeInformation: ClassTag](o
   }
   def remove(stream: DataStream[K]) = {
     val qid = storeBuilder.nextID
-    val opstream = stream.map(in => KVOperation.remove(qid, in))
+    val opstream = stream.map(in => KVOperation.remove(qid, in)).setParallelism(stream.getParallelism)
       .getJavaStream.asInstanceOf[SingleOutputStreamOperator[KVOperation[K, V], _]]
     storeBuilder.remove(opstream, qid)
     val q = new Query[(K, V)](qid, storeBuilder)
@@ -109,8 +109,8 @@ class ScalaKVStore[K: TypeInformation: ClassTag, V: TypeInformation: ClassTag](o
     val opstream = stream.flatMap(in => {
       val opID = Random.nextLong
       val numKeys: Short = in.length.toShort
-      for (i <- 0 to numKeys - 1) yield KVOperation.multiGet(qid, in(i), numKeys, opID)
-    }).getJavaStream.asInstanceOf[SingleOutputStreamOperator[KVOperation[K, V], _]]
+      for (i <- 0 to numKeys - 1) yield KVOperation.multiGet(qid, in(i), numKeys, i.toShort, opID)
+    }).setParallelism(stream.getParallelism).getJavaStream.asInstanceOf[SingleOutputStreamOperator[KVOperation[K, V], _]]
     storeBuilder.multiGet(opstream, qid)
     val q = new Query[Array[(K, V)]](qid, storeBuilder)
     queries += q
@@ -118,7 +118,7 @@ class ScalaKVStore[K: TypeInformation: ClassTag, V: TypeInformation: ClassTag](o
   }
   def getWithKeySelector[R](stream: DataStream[R])(key: R => K) = {
     val qid = storeBuilder.nextID
-    val opstream = stream.map(in => KVOperation.selectorGet(qid, in))
+    val opstream = stream.map(in => KVOperation.selectorGet(qid, in)).setParallelism(stream.getParallelism)
       .getJavaStream.asInstanceOf[SingleOutputStreamOperator[KVOperation[K, V], _]]
     val selector = new KeySelector[R, K] {
       def getKey(o: R) = key(o)
@@ -134,8 +134,8 @@ class ScalaKVStore[K: TypeInformation: ClassTag, V: TypeInformation: ClassTag](o
     val opstream = stream.flatMap(in => {
       val opID = Random.nextLong
       val numKeys: Short = in.length.toShort
-      for (i <- 0 to numKeys - 1) yield KVOperation.selectorMultiGet(qid, in(i), numKeys, opID)
-    }).getJavaStream.asInstanceOf[SingleOutputStreamOperator[KVOperation[K, V], _]]
+      for (i <- 0 to numKeys - 1) yield KVOperation.selectorMultiGet(qid, in(i), numKeys, i.toShort, opID)
+    }).setParallelism(stream.getParallelism).getJavaStream.asInstanceOf[SingleOutputStreamOperator[KVOperation[K, V], _]]
     val selector = new KeySelector[R, K] {
       def getKey(o: R) = key(o)
     }

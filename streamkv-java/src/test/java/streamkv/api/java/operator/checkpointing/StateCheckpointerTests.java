@@ -72,8 +72,7 @@ public class StateCheckpointerTests {
 
 		TreeMap<Long, List<KVOperation<Integer, Integer>>> pending = new TreeMap<>();
 		for (int i = 0; i < 1000; i++) {
-			LinkedList<KVOperation<Integer, Integer>> ops = new LinkedList<>(opGen.generateList(rnd
-					.nextInt(10)));
+			LinkedList<KVOperation<Integer, Integer>> ops = new LinkedList<>(opGen.generateList(rnd.nextInt(10)));
 			pending.put(rnd.nextLong(), ops);
 		}
 
@@ -89,17 +88,17 @@ public class StateCheckpointerTests {
 	@Test
 	public void testMergeStateCheckpointer() throws IOException, ClassNotFoundException {
 
-		StateCheckpointer<Tuple2<Integer, Tuple2[]>, byte[]> cp = new MergeStateCheckpointer<>(
-				IntSerializer.INSTANCE, StringSerializer.INSTANCE);
+		StateCheckpointer<Tuple2<Integer, Tuple2[]>, byte[]> cp = new MergeStateCheckpointer<>(IntSerializer.INSTANCE,
+				StringSerializer.INSTANCE);
 
-		Tuple2<Integer, Tuple2[]> state = Tuple2.of(5, new Tuple2[] { Tuple2.of(2, "a"), Tuple2.of(4, "b"),
-				Tuple2.of(5, (String) null), null });
+		Tuple2<Integer, Tuple2[]> state = Tuple2.of(5,
+				new Tuple2[] { Tuple2.of(2, "a"), Tuple2.of(4, "b"), Tuple2.of(5, (String) null), null });
 
 		byte[] serializableState = cp.snapshotState(state, 0, 0);
 		byte[] serialized = InstantiationUtil.serializeObject(serializableState);
 
-		Tuple2<Integer, Tuple2[]> restored = cp.restoreState((byte[]) InstantiationUtil.deserializeObject(
-				serialized, Thread.currentThread().getContextClassLoader()));
+		Tuple2<Integer, Tuple2[]> restored = cp.restoreState((byte[]) InstantiationUtil.deserializeObject(serialized,
+				Thread.currentThread().getContextClassLoader()));
 		assertEquals(state.f0, restored.f0);
 		assertArrayEquals(state.f1, restored.f1);
 	}

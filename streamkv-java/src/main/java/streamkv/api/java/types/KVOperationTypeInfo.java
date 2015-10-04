@@ -119,8 +119,8 @@ public final class KVOperationTypeInfo<K, V> extends TypeInformation<KVOperation
 
 	@Override
 	public String toString() {
-		return "KVOperationTypeInfo{" + "keyType=" + keyType + ", valueType=" + valueType + ", selectors="
-				+ selectors + ", reducers=" + reducers + '}';
+		return "KVOperationTypeInfo{" + "keyType=" + keyType + ", valueType=" + valueType + ", selectors=" + selectors
+				+ ", reducers=" + reducers + '}';
 	}
 
 }

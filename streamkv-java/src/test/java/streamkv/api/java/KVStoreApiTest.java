@@ -65,8 +65,7 @@ public class KVStoreApiTest implements Serializable {
 				new String[] { "a" }));
 
 		Query<Tuple2<Integer, MyPojo>[]> sMGetQ = kvStore.multiGetWithKeySelector(
-				env.fromElements(new Integer[] { 1 }, new Integer[] { 2 }),
-				new KeySelector<Integer, String>() {
+				env.fromElements(new Integer[] { 1 }, new Integer[] { 2 }), new KeySelector<Integer, String>() {
 
 					@Override
 					public String getKey(Integer value) throws Exception {
@@ -74,9 +73,9 @@ public class KVStoreApiTest implements Serializable {
 					}
 				});
 
-		assertEquals(5, kvStore.getQueries().size());
+		assertEquals(6, kvStore.getQueries().size());
 
-		getQ.getOutput().groupBy(0).map(new MapFunction<Tuple2<String, MyPojo>, MyPojo>() {
+		getQ.getOutput().keyBy(0).map(new MapFunction<Tuple2<String, MyPojo>, MyPojo>() {
 
 			@Override
 			public MyPojo map(Tuple2<String, MyPojo> value) throws Exception {
@@ -86,7 +85,7 @@ public class KVStoreApiTest implements Serializable {
 
 		removeQ.getOutput().project(0).print();
 
-		sGetQ.getOutput().groupBy("f0").flatMap(new FlatMapFunction<Tuple2<Integer, MyPojo>, String>() {
+		sGetQ.getOutput().keyBy("f0").flatMap(new FlatMapFunction<Tuple2<Integer, MyPojo>, String>() {
 
 			@Override
 			public void flatMap(Tuple2<Integer, MyPojo> value, Collector<String> out) throws Exception {

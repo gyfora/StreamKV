@@ -16,12 +16,13 @@
 
 package streamkv.api.java.types;
 
+import java.io.Serializable;
+import java.util.Arrays;
+
 import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.functions.KeySelector;
 
 import streamkv.api.java.KVStore;
-
-import java.io.Serializable;
 
 /**
  * Internal class wrapping all operations that can be applied on a
@@ -38,7 +39,15 @@ public final class KVOperation<K, V> implements Serializable {
 	private static final long serialVersionUID = 4333191409809358657L;
 
 	public enum KVOperationType {
-		PUT, GET, REMOVE, MGET, SGET, GETRES, REMOVERES, MGETRES, SGETRES, SMGET, SMGETRES, UPDATE;
+		PUT(false), GET(false), REMOVE(false), MGET(false), SGET(false), KVRES(true), MGETRES(true), SGETRES(true), SMGET(
+				false), SKVRES(true), UPDATE(false), SUPDATE(false), LOCK(false);
+
+		public boolean isResult;
+
+		KVOperationType(boolean isResult) {
+			this.isResult = isResult;
+		}
+
 	}
 
 	public static KVOperationType[] types = KVOperationType.values();
@@ -57,8 +66,19 @@ public final class KVOperation<K, V> implements Serializable {
 	public ReduceFunction<V> reducer;
 
 	// For MULTIGET operations
+	public boolean hasOpId;
 	public long operationID;
 	public short numKeys;
+	public short index;
+
+	// For locks
+	public byte numOpsForKey;
+
+	// For multi-row operations
+	public boolean isPartOfTransaction = false;
+	public long[] inputOperationIDs;
+	public long transactionID;
+	public K dependentKey;
 
 	public KVOperation() {
 	}
@@ -75,7 +95,30 @@ public final class KVOperation<K, V> implements Serializable {
 			long operationID) {
 		this(queryID, key, value, record, type);
 		this.numKeys = numKeys;
-		this.operationID = operationID;
+		this.hasOpId = true;
+		setOpID(operationID);
+	}
+
+	public KVOperation<K, V> setOpID(long id) {
+		hasOpId = true;
+		operationID = id;
+		return this;
+	}
+
+	public KVOperation<K, V> setTransactionID(long id) {
+		isPartOfTransaction = true;
+		transactionID = id;
+		return this;
+	}
+
+	public KVOperation<K, V> setInputIDs(long[] ids) {
+		inputOperationIDs = ids;
+		return this;
+	}
+
+	public KVOperation<K, V> setDependentKey(K key) {
+		dependentKey = key;
+		return this;
 	}
 
 	public static <K, V> KVOperation<K, V> put(int id, K key, V value) {
@@ -86,12 +129,12 @@ public final class KVOperation<K, V> implements Serializable {
 		return new KVOperation<>((short) id, key, value, null, KVOperationType.UPDATE);
 	}
 
-	public static <K, V> KVOperation<K, V> getRes(int id, K key, V value) {
-		return new KVOperation<>((short) id, key, value, null, KVOperationType.GETRES);
+	public static <K, V> KVOperation<K, V> selectorUpdate(int id, K key, Object record) {
+		return new KVOperation<>((short) id, key, null, record, KVOperationType.SUPDATE);
 	}
 
-	public static <K, V> KVOperation<K, V> removeRes(int id, K key, V value) {
-		return new KVOperation<>((short) id, key, value, null, KVOperationType.REMOVERES);
+	public static <K, V> KVOperation<K, V> kvRes(int id, K key, V value) {
+		return new KVOperation<>((short) id, key, value, null, KVOperationType.KVRES);
 	}
 
 	public static <K, V> KVOperation<K, V> get(int id, K key) {
@@ -102,34 +145,74 @@ public final class KVOperation<K, V> implements Serializable {
 		return new KVOperation<>((short) id, key, null, null, KVOperationType.REMOVE);
 	}
 
-	public static <K, V> KVOperation<K, V> multiGet(int id, K key, short numKeys, long opID) {
-		return new KVOperation<>((short) id, key, null, null, KVOperationType.MGET, numKeys, opID);
+	public static <K, V> KVOperation<K, V> multiGet(int id, K key, short numKeys, short index, long opID) {
+		KVOperation<K, V> op = new KVOperation<>((short) id, key, null, null, KVOperationType.MGET, numKeys, opID);
+		op.index = index;
+		return op;
 	}
 
-	public static <K, V> KVOperation<K, V> selectorMultiGet(int id, Object record, short numKeys, long opID) {
-		return new KVOperation<>((short) id, null, null, record, KVOperationType.SMGET, numKeys, opID);
+	public static <K, V> KVOperation<K, V> selectorMultiGet(int id, Object record, short numKeys, short index, long opID) {
+		KVOperation<K, V> op = new KVOperation<>((short) id, null, null, record, KVOperationType.SMGET, numKeys, opID);
+		op.index = index;
+		return op;
 	}
 
-	public static <K, V> KVOperation<K, V> multiGetRes(int id, K key, V value, short numKeys, long opID) {
-		return new KVOperation<>((short) id, key, value, null, KVOperationType.MGETRES, numKeys, opID);
+	public static <K, V> KVOperation<K, V> multiGetRes(int id, K key, V value, short numKeys, short index, long opID) {
+		KVOperation<K, V> op = new KVOperation<>((short) id, key, value, null, KVOperationType.MGETRES, numKeys, opID);
+		op.index = index;
+		return op;
 	}
 
 	public static <K, V> KVOperation<K, V> selectorMultiGetRes(int id, Object record, V value, short numKeys,
-			long opID) {
-		return new KVOperation<>((short) id, null, value, record, KVOperationType.SMGETRES, numKeys, opID);
+			short index, long opID) {
+		KVOperation<K, V> op = new KVOperation<>((short) id, null, value, record, KVOperationType.SKVRES, numKeys, opID);
+		op.index = index;
+		return op;
 	}
 
 	public static <K, V> KVOperation<K, V> selectorGet(int id, Object record) {
 		return new KVOperation<>((short) id, null, null, record, KVOperationType.SGET);
 	}
 
-	public static <K, V> KVOperation<K, V> selectorGetRes(int id, Object record, V value) {
+	public static <K, V> KVOperation<K, V> skvRes(int id, Object record, V value) {
 		return new KVOperation<>((short) id, null, value, record, KVOperationType.SGETRES);
 	}
 
+	public static <K, V> KVOperation<K, V> lock(int id, K key, long lockID, int numOps) {
+		KVOperation<K, V> op = new KVOperation<>((short) id, key, null, null, KVOperationType.LOCK, (short) 0, lockID);
+		op.numOpsForKey = (byte) numOps;
+		return op;
+	}
+
+	@Override
 	public String toString() {
-		return "(" + queryID + ", " + type.name() + ", " + key + ", " + value + ", " + record + ", "
-				+ numKeys + ", " + operationID + ")";
+		StringBuilder builder = new StringBuilder();
+		builder.append("KVOperation [type=");
+		builder.append(type);
+		builder.append(", queryID=");
+		builder.append(queryID);
+		builder.append(", key=");
+		builder.append(key);
+		builder.append(", value=");
+		builder.append(value);
+		builder.append(", record=");
+		builder.append(record);
+		builder.append(", operationID=");
+		builder.append(operationID);
+		builder.append(", numKeys=");
+		builder.append(numKeys);
+		builder.append(", index=");
+		builder.append(index);
+		builder.append(", inputOperationIDs=");
+		builder.append(Arrays.toString(inputOperationIDs));
+		builder.append(", transactionID=");
+		builder.append(transactionID);
+		builder.append(", numOpsForKey=");
+		builder.append(numOpsForKey);
+		builder.append(", dependentKey=");
+		builder.append(dependentKey);
+		builder.append("]");
+		return builder.toString();
 	}
 
 	@Override
@@ -157,11 +240,20 @@ public final class KVOperation<K, V> implements Serializable {
 		@SuppressWarnings("rawtypes")
 		KVOperation other = (KVOperation) obj;
 
-		if (type != other.type) {
+		if (type != other.type || queryID != other.queryID) {
 			return false;
 		}
 
-		if (queryID != other.queryID) {
+		if (!(isPartOfTransaction == other.isPartOfTransaction)) {
+			return false;
+		}
+
+		if (hasOpId && (!other.hasOpId || !opIDEquals(other))) {
+			return false;
+		}
+
+		if (isPartOfTransaction
+				&& (!Arrays.equals(inputOperationIDs, other.inputOperationIDs) || !dependentKeyEquals(other))) {
 			return false;
 		}
 
@@ -171,21 +263,23 @@ public final class KVOperation<K, V> implements Serializable {
 			return keyEquals(other);
 		case PUT:
 		case UPDATE:
-		case GETRES:
-		case REMOVERES:
+		case KVRES:
 			return keyEquals(other) && valueEquals(other);
 		case MGET:
-			return keyEquals(other) && numKeyEquals(other) && opIDEquals(other);
+			return keyEquals(other) && numKeyAndIndexEquals(other) && opIDEquals(other);
 		case MGETRES:
-			return keyEquals(other) && valueEquals(other) && numKeyEquals(other) && opIDEquals(other);
+			return keyEquals(other) && valueEquals(other) && numKeyAndIndexEquals(other) && opIDEquals(other);
 		case SGET:
 			return recordEquals(other);
 		case SGETRES:
+		case SUPDATE:
 			return valueEquals(other) && recordEquals(other);
 		case SMGET:
-			return recordEquals(other) && numKeyEquals(other) && opIDEquals(other);
-		case SMGETRES:
-			return recordEquals(other) && valueEquals(other) && numKeyEquals(other) && opIDEquals(other);
+			return recordEquals(other) && numKeyAndIndexEquals(other) && opIDEquals(other);
+		case SKVRES:
+			return recordEquals(other) && valueEquals(other) && numKeyAndIndexEquals(other) && opIDEquals(other);
+		case LOCK:
+			return keyEquals(other) && numOpsForKey == other.numOpsForKey && operationID == other.operationID;
 		default:
 			return false;
 		}
@@ -197,6 +291,17 @@ public final class KVOperation<K, V> implements Serializable {
 				return false;
 			}
 		} else if (!key.equals(other.key)) {
+			return false;
+		}
+		return true;
+	}
+
+	private boolean dependentKeyEquals(KVOperation<?, ?> other) {
+		if (dependentKey == null) {
+			if (other.dependentKey != null) {
+				return false;
+			}
+		} else if (!dependentKey.equals(other.dependentKey)) {
 			return false;
 		}
 		return true;
@@ -224,8 +329,8 @@ public final class KVOperation<K, V> implements Serializable {
 		return true;
 	}
 
-	private boolean numKeyEquals(KVOperation<?, ?> other) {
-		return numKeys == other.numKeys;
+	private boolean numKeyAndIndexEquals(KVOperation<?, ?> other) {
+		return numKeys == other.numKeys && index == other.index;
 	}
 
 	private boolean opIDEquals(KVOperation<?, ?> other) {

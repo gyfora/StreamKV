@@ -57,7 +57,6 @@ public class TimestampedKVStoreOperator<K, V> extends AsyncKVStoreOperator<K, V>
 	private static final long serialVersionUID = 1L;
 
 	private OperatorState<TreeMap<Long, List<KVOperation<K, V>>>> pendingOperations;
-	private StreamRecord<KVOperation<K, V>> reuse;
 
 	public TimestampedKVStoreOperator(KVOperationSerializer<K, V> kvOpSerializer) {
 		super(kvOpSerializer);
@@ -80,7 +79,7 @@ public class TimestampedKVStoreOperator<K, V> extends AsyncKVStoreOperator<K, V>
 			Entry<Long, List<KVOperation<K, V>>> next = it.next();
 			reuse.<KVOperation<K, V>> replace(null, next.getKey());
 			for (KVOperation<K, V> op : next.getValue()) {
-				executeOperation(op, reuse);
+				executeOperation(op);
 			}
 			it.remove();
 		}
@@ -102,8 +101,8 @@ public class TimestampedKVStoreOperator<K, V> extends AsyncKVStoreOperator<K, V>
 	@Override
 	public void open(Configuration c) throws IOException {
 		super.open(c);
-		pendingOperations = getRuntimeContext().getOperatorState("pendingOps",
-				new TreeMap<Long, List<KVOperation<K, V>>>(), false,
-				new PendingOperationCheckpointer<>(kvOpSerializer));
+		pendingOperations = getRuntimeContext()
+				.getOperatorState("pendingOps", new TreeMap<Long, List<KVOperation<K, V>>>(), false,
+						new PendingOperationCheckpointer<>(kvOpSerializer));
 	}
 }

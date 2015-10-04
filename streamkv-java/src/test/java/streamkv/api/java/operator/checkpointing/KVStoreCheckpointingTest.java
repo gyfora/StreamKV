@@ -217,8 +217,7 @@ public class KVStoreCheckpointingTest implements Serializable {
 	private static class CollectingSink<T> extends RichSinkFunction<T> {
 		private static final long serialVersionUID = 1L;
 
-		public static List<Set<Object>> allCollected = Collections
-				.synchronizedList(new ArrayList<Set<Object>>());
+		public static List<Set<Object>> allCollected = Collections.synchronizedList(new ArrayList<Set<Object>>());
 
 		private Set<Object> collected;
 		private int i;
@@ -239,8 +238,7 @@ public class KVStoreCheckpointingTest implements Serializable {
 		}
 	}
 
-	private static class OnceFailingMapper implements
-			MapFunction<Tuple2<String, Integer>, Tuple2<String, Integer>> {
+	private static class OnceFailingMapper implements MapFunction<Tuple2<String, Integer>, Tuple2<String, Integer>> {
 
 		private static final long serialVersionUID = 1L;
 		private static volatile boolean failed = false;
@@ -343,8 +341,7 @@ public class KVStoreCheckpointingTest implements Serializable {
 
 		@Override
 		public void open(Configuration c) throws IOException {
-			offset = getRuntimeContext().getOperatorState("offset",
-					getRuntimeContext().getIndexOfThisSubtask(), false);
+			offset = getRuntimeContext().getOperatorState("offset", getRuntimeContext().getIndexOfThisSubtask(), false);
 		}
 
 	}
@@ -389,8 +386,7 @@ public class KVStoreCheckpointingTest implements Serializable {
 
 		@Override
 		public void open(Configuration c) throws IOException {
-			offset = getRuntimeContext().getOperatorState("offset",
-					getRuntimeContext().getIndexOfThisSubtask(), false);
+			offset = getRuntimeContext().getOperatorState("offset", getRuntimeContext().getIndexOfThisSubtask(), false);
 		}
 
 	}
@@ -433,8 +429,7 @@ public class KVStoreCheckpointingTest implements Serializable {
 
 		@Override
 		public void open(Configuration c) throws IOException {
-			offset = getRuntimeContext().getOperatorState("offset",
-					getRuntimeContext().getIndexOfThisSubtask(), false);
+			offset = getRuntimeContext().getOperatorState("offset", getRuntimeContext().getIndexOfThisSubtask(), false);
 		}
 
 	}

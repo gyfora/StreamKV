@@ -21,7 +21,6 @@ import static org.junit.Assert.assertEquals;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -56,47 +55,25 @@ public class TSKVStoreIntegrationTest implements Serializable {
 		env.getConfig().disableSysoutLogging();
 		env.getConfig().enableTimestamps();
 
-		// Define query input streams 
-		DataStream<Tuple2<String, Integer>> put1 = env.addSource(
-				new PutSource(
-						Tuple3.of("a", 1, 1L), 
-						Tuple3.of("b", 2, 5L)));
+		// Define query input streams
+		DataStream<Tuple2<String, Integer>> put1 = env.addSource(new PutSource(Tuple3.of("a", 1, 1L), Tuple3.of("b", 2,
+				5L)));
 
-		DataStream<Tuple2<String, Integer>> put2 = env.addSource(
-				new PutSource(
-						Tuple3.of("a", -1, 4L), 
-						Tuple3.of("b", -1, 8L), 
-						Tuple3.of("c", 0, 12L)));
-		
-		DataStream<Tuple2<String, Integer>> update = env.addSource(
-				new PutSource(
-						Tuple3.of("a", 2, 2L), 
-						Tuple3.of("b", 3, 9L))); 
+		DataStream<Tuple2<String, Integer>> put2 = env.addSource(new PutSource(Tuple3.of("a", -1, 4L), Tuple3.of("b",
+				-1, 8L), Tuple3.of("c", 0, 12L)));
 
-		DataStream<Tuple2<String, Long>> sget = env.addSource(
-				new SGetSource(
-						Tuple2.of("a", 0L), 
-						Tuple2.of("a", 5L), 
-						Tuple2.of("b", 10L), 
-						Tuple2.of("c", 11L)));
+		DataStream<Tuple2<String, Integer>> update = env.addSource(new PutSource(Tuple3.of("a", 2, 2L), Tuple3.of("b",
+				3, 9L)));
+
+		DataStream<Tuple2<String, Long>> sget = env.addSource(new SGetSource(Tuple2.of("a", 0L), Tuple2.of("a", 5L),
+				Tuple2.of("b", 10L), Tuple2.of("c", 11L)));
 
 		DataStream<Tuple2<String, Long>[]> smget = env.addSource(
-				new SMGetSource(
-						arrayOf(
-								Tuple2.of("a", 3L), 
-								Tuple2.of("b", 3L)), 
-						arrayOf(
-								Tuple2.of("b", 13L), 
-								Tuple2.of("b", 13L), 
-								Tuple2.of("c", 13L)))).returns("Tuple2<String, Long>[]");
+				new SMGetSource(arrayOf(Tuple2.of("a", 3L), Tuple2.of("b", 3L)), arrayOf(Tuple2.of("b", 13L),
+						Tuple2.of("b", 13L), Tuple2.of("c", 13L)))).returns("Tuple2<String, Long>[]");
 
-		DataStream<String> get = env.addSource(
-				new GetSource(
-						Tuple2.of("a", 0L), 
-						Tuple2.of("b", 7L), 
-						Tuple2.of("a", 8L), 
-						Tuple2.of("c", 10L), 
-						Tuple2.of("c", 13L)));
+		DataStream<String> get = env.addSource(new GetSource(Tuple2.of("a", 0L), Tuple2.of("b", 7L),
+				Tuple2.of("a", 8L), Tuple2.of("c", 10L), Tuple2.of("c", 13L)));
 
 		// Create KVStore and apply operations
 		KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.TIMESTAMP);
@@ -107,9 +84,9 @@ public class TSKVStoreIntegrationTest implements Serializable {
 		Query<Tuple2<Tuple2<String, Long>, Integer>> q1 = store.getWithKeySelector(sget, new MySelector());
 		Query<Tuple2<Tuple2<String, Long>, Integer>[]> q2 = store.multiGetWithKeySelector(smget, new MySelector());
 		Query<Tuple2<String, Integer>> q3 = store.get(get);
-		
+
 		store.update(update, multiply);
-		
+
 		q1.getOutput().addSink(new CollectingSink1<Tuple2<Tuple2<String, Long>, Integer>>());
 		q2.getOutput().addSink(new CollectingSink2<Tuple2<Tuple2<String, Long>, Integer>[]>());
 		q3.getOutput().addSink(new CollectingSink3<Tuple2<String, Integer>>());
@@ -126,15 +103,10 @@ public class TSKVStoreIntegrationTest implements Serializable {
 		sgetExpectedOutput.add(Tuple2.of(Tuple2.of("b", 10L), -3));
 		sgetExpectedOutput.add(Tuple2.of(Tuple2.of("c", 11L), (Integer) null));
 
-		smgetExpectedOutput.add(
-				arrayOf(
-						Tuple2.of(Tuple2.of("a", 3L), 2),
-						Tuple2.of(Tuple2.of("b", 3L), (Integer) null)));
-		smgetExpectedOutput.add(
-				arrayOf(
-						Tuple2.of(Tuple2.of("b", 13L), -3),
-						Tuple2.of(Tuple2.of("b", 13L), -3), 
-						Tuple2.of(Tuple2.of("c", 13L), 0)));
+		smgetExpectedOutput
+				.add(arrayOf(Tuple2.of(Tuple2.of("a", 3L), 2), Tuple2.of(Tuple2.of("b", 3L), (Integer) null)));
+		smgetExpectedOutput.add(arrayOf(Tuple2.of(Tuple2.of("b", 13L), -3), Tuple2.of(Tuple2.of("b", 13L), -3),
+				Tuple2.of(Tuple2.of("c", 13L), 0)));
 
 		getExpectedOutput.add(Tuple2.of("a", (Integer) null));
 		getExpectedOutput.add(Tuple2.of("b", 2));
@@ -147,14 +119,14 @@ public class TSKVStoreIntegrationTest implements Serializable {
 		validateSelectorMultigetOutput(smgetExpectedOutput);
 		assertEquals(getExpectedOutput, CollectingSink3.collected);
 	}
-	
+
 	private static ReduceFunction<Integer> multiply = new ReduceFunction<Integer>() {
 
 		private static final long serialVersionUID = 1L;
 
 		@Override
 		public Integer reduce(Integer value1, Integer value2) throws Exception {
-			return value1*value2;
+			return value1 * value2;
 		}
 	};
 
@@ -165,25 +137,11 @@ public class TSKVStoreIntegrationTest implements Serializable {
 		Collections.sort(actual, new Comparator<Tuple2<Tuple2<String, Long>, Integer>[]>() {
 
 			@Override
-			public int compare(Tuple2<Tuple2<String, Long>, Integer>[] o1,
-					Tuple2<Tuple2<String, Long>, Integer>[] o2) {
+			public int compare(Tuple2<Tuple2<String, Long>, Integer>[] o1, Tuple2<Tuple2<String, Long>, Integer>[] o2) {
 				return o1[0].f0.f1.compareTo(o2[0].f0.f1);
 			}
 
 		});
-
-		// Sort output arrays by key
-		for (Tuple2<Tuple2<String, Long>, Integer>[] arr : actual) {
-			Arrays.sort(arr, new Comparator<Tuple2<Tuple2<String, Long>, Integer>>() {
-
-				@Override
-				public int compare(Tuple2<Tuple2<String, Long>, Integer> o1,
-						Tuple2<Tuple2<String, Long>, Integer> o2) {
-					return o1.f0.f0.compareTo(o2.f0.f0);
-				}
-
-			});
-		}
 
 		assertEquals(expected.size(), actual.size());
 
@@ -194,7 +152,7 @@ public class TSKVStoreIntegrationTest implements Serializable {
 			assertArrayEquals(expectedIT.next(), actualIT.next());
 		}
 	}
-	
+
 	public static class MySelector implements KeySelector<Tuple2<String, Long>, String> {
 
 		private static final long serialVersionUID = 1L;
@@ -208,8 +166,7 @@ public class TSKVStoreIntegrationTest implements Serializable {
 	private static class CollectingSink1<T> implements SinkFunction<T> {
 		private static final long serialVersionUID = 1L;
 
-		public static Set<Object> collected = Collections
-				.newSetFromMap(new ConcurrentHashMap<Object, Boolean>());
+		public static Set<Object> collected = Collections.newSetFromMap(new ConcurrentHashMap<Object, Boolean>());
 
 		@Override
 		public void invoke(T value) throws Exception {
@@ -235,8 +192,7 @@ public class TSKVStoreIntegrationTest implements Serializable {
 	private static class CollectingSink3<T> implements SinkFunction<T> {
 		private static final long serialVersionUID = 1L;
 
-		public static Set<Object> collected = Collections
-				.newSetFromMap(new ConcurrentHashMap<Object, Boolean>());
+		public static Set<Object> collected = Collections.newSetFromMap(new ConcurrentHashMap<Object, Boolean>());
 
 		@Override
 		public void invoke(T value) throws Exception {
@@ -339,8 +295,7 @@ public class TSKVStoreIntegrationTest implements Serializable {
 		}
 
 		@Override
-		public void run(SourceContext<Tuple2<String, Long>[]> ctx)
-				throws Exception {
+		public void run(SourceContext<Tuple2<String, Long>[]> ctx) throws Exception {
 			synchronized (ctx.getCheckpointLock()) {
 				for (Tuple2<String, Long>[] input : inputs) {
 					ctx.collectWithTimestamp(input, input[0].f1);

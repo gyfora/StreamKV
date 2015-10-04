@@ -37,6 +37,10 @@ public class Query<T> {
 		this.storebuilder = storebuilder;
 	}
 
+	public int getID() {
+		return id;
+	}
+
 	/**
 	 * Returns the output stream of this {@link Query}.
 	 * 

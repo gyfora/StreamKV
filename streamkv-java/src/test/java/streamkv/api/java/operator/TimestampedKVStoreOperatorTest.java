@@ -16,7 +16,7 @@
 
 package streamkv.api.java.operator;
 
-import static streamkv.api.java.operator.AsyncKVStoreOperatorTest.reducer;
+import static streamkv.api.java.operator.AsyncKVStoreOperatorTest.sum;
 import static streamkv.api.java.operator.AsyncKVStoreOperatorTest.selector;
 import static streamkv.api.java.operator.AsyncKVStoreOperatorTest.selectorGet;
 import static streamkv.api.java.operator.AsyncKVStoreOperatorTest.selectorMultiGet;
@@ -40,7 +40,7 @@ public class TimestampedKVStoreOperatorTest {
 	@Test
 	public void testKVOperator() throws Exception {
 
-		AsyncKVStoreOperator<String, Integer> operator = new TimestampedKVStoreOperator<>(
+		TimestampedKVStoreOperator<String, Integer> operator = new TimestampedKVStoreOperator<>(
 				new KVOperationSerializer<String, Integer>(StringSerializer.INSTANCE, IntSerializer.INSTANCE, null,
 						null, null));
 
@@ -56,8 +56,8 @@ public class TimestampedKVStoreOperatorTest {
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> remove(3, "c"), 11));
 		testHarness.processElement(new StreamRecord<>(KVOperation.put(0, "1", 2), 2));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(1, "1"), 4));
-		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> multiGet(5, "d",
-				(short) 5, 2L), 17));
+		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> multiGet(5, "d", (short) 5,
+				(short) 1, 2L), 17));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(2, "c"), 5));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(1, "a"), 3));
 
@@ -71,40 +71,41 @@ public class TimestampedKVStoreOperatorTest {
 
 		testHarness.processWatermark(new Watermark(11));
 
-		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> multiGet(5, "a",
-				(short) 5, 1L), 16));
+		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> multiGet(5, "a", (short) 5,
+				(short) 0, 1L), 16));
 		testHarness.processElement(new StreamRecord<>(selectorGet(4, 1, selector), 14));
 		testHarness.processElement(new StreamRecord<>(selectorGet(4, 2, selector), 15));
-		testHarness.processElement(new StreamRecord<>(selectorMultiGet(6, 1, 5, 2L, selector), 17));
+		testHarness.processElement(new StreamRecord<>(selectorMultiGet(6, 1, 5, 0, 2L, selector), 17));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(2, "c"), 12));
-		testHarness.processElement(new StreamRecord<>(update(7, "z", 10, reducer), 21));
+		testHarness.processElement(new StreamRecord<>(update(7, "z", 10, sum), 21));
 
 		testHarness.processWatermark(new Watermark(18));
 
-		testHarness.processElement(new StreamRecord<>(update(7, "z", 1, reducer), 19));
+		testHarness.processElement(new StreamRecord<>(update(7, "z", 1, sum), 19));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(8, "z"), 20));
 		testHarness.processElement(new StreamRecord<>(KVOperation.<String, Integer> get(8, "z"), 22));
 
 		testHarness.processWatermark(new Watermark(22));
 
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(1, "a", 1), 3));
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(1, "1", 2), 4));
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(2, "c", null), 5));
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(1, "a", 4), 8));
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(2, "1", 2), 9));
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(2, "c", 3), 10));
-		expectedOutput.add(new StreamRecord<>(KVOperation.removeRes(3, "c", 3), 11));
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(2, "c", null), 12));
-		expectedOutput.add(new StreamRecord<>(KVOperation.removeRes(3, "d", null), 13));
-		expectedOutput.add(new StreamRecord<>(KVOperation.selectorGetRes(4, 1, 2), 14));
-		expectedOutput.add(new StreamRecord<>(KVOperation.selectorGetRes(4, 2, null), 15));
-		expectedOutput.add(new StreamRecord<>(KVOperation.multiGetRes(5, "a", 4, (short) 5, 1L), 16));
-		expectedOutput.add(new StreamRecord<>(KVOperation.multiGetRes(5, "d", null, (short) 5, 2L), 17));
-		expectedOutput.add(new StreamRecord<>(KVOperation.selectorMultiGetRes(6, 1, 2, (short) 5, 2L), 17));
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(8, "z", 1), 20));
-		expectedOutput.add(new StreamRecord<>(KVOperation.getRes(8, "z", 11), 22));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(1, "a", 1), 3));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(1, "1", 2), 4));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(2, "c", null), 5));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(1, "a", 4), 8));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(2, "1", 2), 9));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(2, "c", 3), 10));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(3, "c", 3), 11));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(2, "c", null), 12));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(3, "d", null), 13));
+		expectedOutput.add(new StreamRecord<>(KVOperation.skvRes(4, 1, 2), 14));
+		expectedOutput.add(new StreamRecord<>(KVOperation.skvRes(4, 2, null), 15));
+		expectedOutput.add(new StreamRecord<>(KVOperation.multiGetRes(5, "a", 4, (short) 5, (short) 0, 1L), 16));
+		expectedOutput.add(new StreamRecord<>(KVOperation.multiGetRes(5, "d", null, (short) 5, (short) 1, 2L), 17));
+		expectedOutput.add(new StreamRecord<>(KVOperation.selectorMultiGetRes(6, 1, 2, (short) 5, (short) 0, 2L), 17));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(7, "z", 1), 19));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(8, "z", 1), 20));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(7, "z", 11), 21));
+		expectedOutput.add(new StreamRecord<>(KVOperation.kvRes(8, "z", 11), 22));
 
-		TestHarnessUtil
-				.assertOutputEquals("Output was not correct.", expectedOutput, testHarness.getOutput());
+		TestHarnessUtil.assertOutputEquals("Output was not correct.", expectedOutput, testHarness.getOutput());
 	}
 }

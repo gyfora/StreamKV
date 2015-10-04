@@ -66,8 +66,7 @@ public class JavaKVStoreBuilder<K, V> extends AbstractKVStoreBuilder<K, V> {
 
 	private TupleTypeInfo<Tuple2<K, V>> getKVType() {
 		KVOperationTypeInfo<K, V> kvOperationType = getKVOperationType();
-		return (TupleTypeInfo<Tuple2<K, V>>) KVUtils.getKVType(kvOperationType.keyType,
-				kvOperationType.valueType);
+		return (TupleTypeInfo<Tuple2<K, V>>) KVUtils.getKVType(kvOperationType.keyType, kvOperationType.valueType);
 	}
 
 	@Override
@@ -86,7 +85,7 @@ public class JavaKVStoreBuilder<K, V> extends AbstractKVStoreBuilder<K, V> {
 		TypeSerializer componentSerializer = getComponentType(recordType).createSerializer(config);
 
 		return stream.flatMap(new MultiGetMerger<K, V>(componentSerializer, valueSerializer)).returns(
-				ObjectArrayTypeInfo.getInfoFor(KVUtils.getKVType(getComponentType(recordType), getKVType()
-						.getTypeAt(1))));
+				ObjectArrayTypeInfo.getInfoFor(KVUtils
+						.getKVType(getComponentType(recordType), getKVType().getTypeAt(1))));
 	}
 }
