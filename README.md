@@ -2,7 +2,7 @@
 
 StreamKV is a streaming key-value store built on top of [Apache Flink](http://flink.apache.org/) to be used within streaming applications requiring more complex stateful logic. StreamKV integrates seamlessly with the Flink fault-tolerance model providing exactly-once semantics.
 
-Key-value operations (put, get, remove...) and their outputs are represented as native Flink `DataStreams` and can be embedded in any Flink Streaming application abstracting away fault-tolerant state sharing between different components. 
+Key-value operations (put, get, remove...) and their outputs are represented as native Flink `DataStreams` and can be embedded in any Flink Streaming application abstracting away fault-tolerant state sharing between different components.
 
 StreamKV also supports timestamped operations, which will be executed in an ordered manner using Flink's watermark mechanism.
 
@@ -26,7 +26,12 @@ StreamKV also supports timestamped operations, which will be executed in an orde
     <tr>
       <td align="center"><strong>Update</strong></td>
       <td>Combine a stream of (Key, Value) pairs with their current value in the store</td>
-      <td>No output</td>
+      <td>(Key, Value) Stream</td>
+    </tr>
+    <tr>
+      <td align="center"><strong>Update (KeySelector)</strong></td>
+      <td>Combine a stream of (Object, Value) pairs with their current value in the store using a custom selector for extracting the keys.</td>
+      <td>(Object, Value) Stream</td>
     </tr>
     <tr>
       <td align="center"><strong>Get</strong></td>
@@ -57,7 +62,7 @@ StreamKV also supports timestamped operations, which will be executed in an orde
 </table>
 
 
-Check out the [Scala](https://github.com/gyfora/StreamKV/blob/master/streamkv-scala/src/main/scala/streamkv/api/scala/example/StreamKVExample.scala) and [Java](https://github.com/gyfora/StreamKV/blob/master/streamkv-java/src/main/java/streamkv/api/java/examples/StreamKVExample.java) example programs! 
+Check out the [Scala](https://github.com/gyfora/StreamKV/blob/master/streamkv-scala/src/main/scala/streamkv/api/scala/example/StreamKVExample.scala) and [Java](https://github.com/gyfora/StreamKV/blob/master/streamkv-java/src/main/java/streamkv/api/java/examples/StreamKVExample.java) example programs!
 
 Learn more about Flink at [http://flink.apache.org/](http://flink.apache.org/)
 

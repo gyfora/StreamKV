@@ -22,22 +22,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import org.apache.flink.api.java.tuple.Tuple2;
+
+import streamkv.api.java.KVStore;
 import streamkv.api.java.types.KVOperation;
 import streamkv.api.java.util.KVUtils;
 
-@SuppressWarnings({ "rawtypes", "unchecked" })
-public class Operation {
-
+@SuppressWarnings("unchecked")
+public class Operation<K, V> {
 	static Random rnd = new Random();
 
-	private Operation() {
-
+	private static class Result<K, V> extends Operation<K, V> {
 	}
 
-	private static class Result<V> extends Operation {
-	}
-
-	public static class LiteralOp<V> extends Result<V> {
+	public static class LiteralOp<V> extends Result<Void, V> {
 		V val;
 
 		public LiteralOp(V val) {
@@ -45,36 +43,36 @@ public class Operation {
 		}
 	}
 
-	public static class PutOp<K, V> extends Operation {
+	public static class PutOp<K, V> extends Operation<K, V> {
 		LiteralOp<K> K;
-		Result<V> V;
+		Result<K, V> V;
 
-		public PutOp(LiteralOp<K> K, Result<V> V) {
+		public PutOp(LiteralOp<K> K, Result<K, V> V) {
 			this.K = K;
 			this.V = V;
 		}
 	}
 
-	public static class UpdateOp<K, V> extends Result<V> {
+	public static class UpdateOp<K, V> extends Result<K, V> {
 		LiteralOp<K> K;
-		Result<V> V;
+		Result<K, V> V;
 
-		public UpdateOp(LiteralOp<K> K, Result<V> V) {
+		public UpdateOp(LiteralOp<K> K, Result<K, V> V) {
 			this.K = K;
 			this.V = V;
 		}
 	}
 
-	private static class AndOp extends Operation {
+	private static class AndOp<K, V> extends Operation<K, V> {
 
-		public Operation[] ops;
+		public Operation<K, V>[] ops;
 
-		public AndOp(Operation... ops) {
+		public AndOp(Operation<K, V>... ops) {
 			this.ops = ops;
 		}
 	}
 
-	private static class GetOp<K, V> extends Result<V> {
+	private static class GetOp<K, V> extends Result<K, V> {
 		LiteralOp<K> K;
 
 		public GetOp(LiteralOp<K> K) {
@@ -82,7 +80,7 @@ public class Operation {
 		}
 	}
 
-	private static class RemoveOp<K, V> extends Result<V> {
+	private static class RemoveOp<K, V> extends Result<K, V> {
 		public LiteralOp<K> K;
 
 		public RemoveOp(LiteralOp<K> K) {
@@ -90,106 +88,111 @@ public class Operation {
 		}
 	}
 
-	public static <K, V> PutOp<K, V> Put(LiteralOp<K> key, Result<V> value) {
+	public static <K, V> PutOp<K, V> Put(LiteralOp<K> key, Result<K, V> value) {
 		return new PutOp<>(key, value);
 	}
 
-	public static <K, V> UpdateOp<K, V> Update(LiteralOp<K> key, Result<V> value) {
+	public static <K, V> UpdateOp<K, V> Update(LiteralOp<K> key, Result<K, V> value) {
 		return new UpdateOp<>(key, value);
 	}
 
-	public static <L> LiteralOp<L> Literal(L value) {
-		return new LiteralOp<L>(value);
+	public static <K> LiteralOp<K> Literal(K value) {
+		return new LiteralOp<K>(value);
 	}
 
-	public static <K, V> GetOp<K, V> Get(LiteralOp<K> key) {
+	public static <K, V> GetOp<K, V> Get(LiteralOp<K> key, KVStore<K, V> store) {
 		return new GetOp<K, V>(key);
 	}
 
-	public static <K, V> RemoveOp<K, V> Remove(LiteralOp<K> key) {
+	public static <K, V> RemoveOp<K, V> Remove(LiteralOp<K> key, KVStore<K, V> store) {
 		return new RemoveOp<K, V>(key);
 	}
 
-	public static Operation And(Operation... ops) {
-		return new AndOp(ops);
+	@SafeVarargs
+	public static <K, V> Operation<K, V> And(Operation<K, V>... ops) {
+		return new AndOp<K, V>(ops);
 	}
 
-	public static List<KVOperation> createTransaction(int qid, Operation op) throws Exception {
-		List<KVOperation> kvOps = new ArrayList<>();
+	public static <K, V> List<KVOperation<K, V>> createTransaction(int qid, Operation<K, V> op) throws Exception {
+		List<KVOperation<K, V>> kvOps = new ArrayList<>();
 		if (op instanceof LiteralOp) {
-			throw new UnsupportedOperationException("Literals cannot produce any output");
+			throw new UnsupportedOperationException("Literals cannot be standalone operations.");
 		} else if (op instanceof AndOp) {
-			for (Operation o : ((AndOp) op).ops) {
-				kvOps.addAll(parseRecursively(o, new ArrayList<KVOperation>(), rnd.nextLong(), null));
+			for (Operation<K, V> o : ((AndOp<K, V>) op).ops) {
+				kvOps.addAll(parseRecursively(o, new ArrayList<KVOperation<K, V>>(), rnd.nextLong(), null));
 			}
 		} else {
-			kvOps.addAll(parseRecursively(op, new ArrayList<KVOperation>(), rnd.nextLong(), null));
+			kvOps.addAll(parseRecursively(op, new ArrayList<KVOperation<K, V>>(), rnd.nextLong(), null));
 		}
 
 		if (kvOps.size() > 1) {
 			long transactionID = rnd.nextLong();
-			Map<Object, Integer> keys = new HashMap<>();
+			Map<K, Tuple2<Integer, Boolean>> keys = new HashMap<>();
 
-			for (KVOperation kvOp : kvOps) {
+			for (KVOperation<K, V> kvOp : kvOps) {
 				kvOp.setTransactionID(transactionID);
 				kvOp.queryID = (short) qid;
-				Object key = KVUtils.getK(kvOp);
-				Integer c = keys.get(key);
-				if (c == null) {
-					keys.put(key, 1);
+				K key = KVUtils.getK(kvOp);
+				Tuple2<Integer, Boolean> t = keys.get(key);
+				if (t == null) {
+					keys.put(key, Tuple2.of(1, kvOp.inputOperationIDs.length > 0));
 				} else {
-					keys.put(key, c + 1);
+					t.f0 = t.f0 + 1;
+					t.f1 = t.f1 || kvOp.inputOperationIDs.length > 0;
+					keys.put(key, t);
 				}
 			}
 
-			for (Map.Entry<Object, Integer> key : keys.entrySet()) {
-				kvOps.add(0, KVOperation.lock(qid, key.getKey(), transactionID, key.getValue()));
-
+			for (Map.Entry<K, Tuple2<Integer, Boolean>> key : keys.entrySet()) {
+				if (key.getValue().f0 > 1 || key.getValue().f1) {
+					kvOps.add(0, KVOperation.<K, V> lock(qid, key.getKey(), transactionID, key.getValue().f0));
+				}
 			}
 		}
 
 		return kvOps;
 	}
 
-	private static List<KVOperation> parseRecursively(Operation op, List<KVOperation> l, long id, Object depKey) {
+	private static <K, V> List<KVOperation<K, V>> parseRecursively(Operation<K, V> op, List<KVOperation<K, V>> l,
+			long id, K depKey) {
 		if (op instanceof PutOp) {
-			PutOp put = (PutOp) op;
+			PutOp<K, V> put = (PutOp<K, V>) op;
 
 			if (put.V instanceof LiteralOp) {
-				l.add(KVOperation.put(0, put.K.val, ((LiteralOp) put.V).val).setDependentKey(depKey)
+				l.add(KVOperation.put(0, put.K.val, ((LiteralOp<V>) put.V).val).setDependentKey(depKey)
 						.setInputIDs(new long[0]));
 				return l;
 			} else {
 				long nextID = rnd.nextLong();
-				l.add(KVOperation.put(0, put.K.val, null).setOpID(id).setInputIDs(new long[] { nextID })
+				l.add(KVOperation.<K, V> put(0, put.K.val, null).setOpID(id).setInputIDs(new long[] { nextID })
 						.setDependentKey(depKey));
 				return parseRecursively(put.V, l, nextID, put.K.val);
 			}
 
 		} else if (op instanceof GetOp) {
-			GetOp get = (GetOp) op;
-			l.add(KVOperation.get(0, get.K.val).setOpID(id).setDependentKey(depKey).setInputIDs(new long[0]));
+			GetOp<K, V> get = (GetOp<K, V>) op;
+			l.add(KVOperation.<K, V> get(0, get.K.val).setOpID(id).setDependentKey(depKey).setInputIDs(new long[0]));
 			return l;
 		} else if (op instanceof GetOp) {
-			RemoveOp rem = (RemoveOp) op;
-			l.add(KVOperation.remove(0, rem.K.val).setOpID(id).setDependentKey(depKey).setInputIDs(new long[0]));
+			RemoveOp<K, V> rem = (RemoveOp<K, V>) op;
+			l.add(KVOperation.<K, V> remove(0, rem.K.val).setOpID(id).setDependentKey(depKey).setInputIDs(new long[0]));
 			return l;
 		} else if (op instanceof UpdateOp) {
-			UpdateOp put = (UpdateOp) op;
+			UpdateOp<K, V> put = (UpdateOp<K, V>) op;
 
 			if (put.V instanceof LiteralOp) {
-				l.add(KVOperation.update(0, put.K.val, ((LiteralOp) put.V).val).setDependentKey(depKey)
+				l.add(KVOperation.update(0, put.K.val, ((LiteralOp<V>) put.V).val).setDependentKey(depKey)
 						.setInputIDs(new long[0]));
 				return l;
 			} else {
 				long nextID = rnd.nextLong();
-				l.add(KVOperation.update(0, put.K.val, null).setOpID(id).setInputIDs(new long[] { nextID })
+				l.add(KVOperation.<K, V> update(0, put.K.val, null).setOpID(id).setInputIDs(new long[] { nextID })
 						.setDependentKey(depKey));
 				return parseRecursively(put.V, l, nextID, put.K.val);
 			}
 
 		} else {
-			throw new UnsupportedOperationException("??");
+			throw new UnsupportedOperationException("Unknown operation.");
 		}
 
 	}

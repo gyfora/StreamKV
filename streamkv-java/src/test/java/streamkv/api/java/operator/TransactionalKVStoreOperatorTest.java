@@ -20,6 +20,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static streamkv.api.java.operation.Operation.And;
 import static streamkv.api.java.operation.Operation.Get;
+import static streamkv.api.java.operation.Operation.Put;
 import static streamkv.api.java.operation.Operation.Literal;
 import static streamkv.api.java.operation.Operation.Update;
 
@@ -208,32 +209,18 @@ public class TransactionalKVStoreOperatorTest implements Serializable {
 		TestHarnessUtil.assertOutputEquals("Output was not correct.", expectedOutput, testHarness.getOutput());
 	}
 
-	// @Test
+	@Test
 	public void integrationTest() throws Exception {
-
-		System.out.println(Operation.createTransaction(2, And(Get(Literal(1)), Get(Literal(3)))));
-
-		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-		env.setParallelism(2);
-
-		KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.ARRIVALTIME);
-
-		store.put(rebalance(env.fromElements(Tuple2.of("a", 2), Tuple2.of("d", 6))));
-
-		Query<KVOperation<String, Integer>> out = store.applyOperation(delay(
-				env.fromElements(Update(Literal("a"), Get(Literal("d")))), 3000));
-
-		store.setReducerForQuery(out.getID(), AsyncKVStoreOperatorTest.sum);
-
-		out.getOutput().print();
-
-		env.execute();
+		System.out.println(Operation.createTransaction(2, Put(Literal(2), Get(Literal(3), null))));
+		System.out.println("------");
+		System.out.println(Operation.createTransaction(-1,
+				Update(Literal(2), Update(Literal(3), Update(Literal(4), Get(Literal(5), null))))));
 	}
 
 	public void testDoubleUpdate() throws Exception {
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 		env.setParallelism(4);
-		KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.ARRIVALTIME);
+		final KVStore<String, Integer> store = KVStore.withOrdering(OperationOrdering.ARRIVALTIME);
 
 		List<Tuple2<String, Integer>> put = new ArrayList<>();
 		for (int i = 0; i < 10000; i++) {
@@ -248,13 +235,14 @@ public class TransactionalKVStoreOperatorTest implements Serializable {
 		store.put(rebalance(env.fromCollection(put)));
 
 		Query<?> u = store.applyOperation(rebalance(env.fromCollection(update)).map(
-				new MapFunction<Tuple2<String, String>, Operation>() {
+				new MapFunction<Tuple2<String, String>, Operation<String, Integer>>() {
 
 					private static final long serialVersionUID = 1L;
 
 					@Override
-					public Operation map(Tuple2<String, String> t) throws Exception {
-						return And(Update(Literal(t.f0), Get(Literal(t.f1))), Update(Literal(t.f1), Get(Literal(t.f0))));
+					public Operation<String, Integer> map(Tuple2<String, String> t) throws Exception {
+						return And(Update(Literal(t.f0), Get(Literal(t.f1), store)),
+								Update(Literal(t.f1), Get(Literal(t.f0), store)));
 					}
 				}));
 
@@ -287,18 +275,6 @@ public class TransactionalKVStoreOperatorTest implements Serializable {
 		JobExecutionResult r = env.execute();
 		System.out.println(r.getNetRuntime());
 
-	}
-
-	private <T> DataStream<T> delay(DataStream<T> in, final int ms) {
-		return in.global().filter(new FilterFunction<T>() {
-			private static final long serialVersionUID = 1L;
-
-			@Override
-			public boolean filter(T arg0) throws Exception {
-				Thread.sleep(ms);
-				return true;
-			}
-		});
 	}
 
 	private <T> DataStream<T> rebalance(DataStream<T> in) {

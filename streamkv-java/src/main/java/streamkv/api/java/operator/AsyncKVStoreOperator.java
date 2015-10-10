@@ -101,7 +101,6 @@ public class AsyncKVStoreOperator<K, V> extends AbstractUdfStreamOperator<KVOper
 		if (op.isPartOfTransaction) {
 			// Operations part of a transaction
 			if (runningTransactions.containsKey(op.transactionID)) {
-
 				// Transaction has already started
 				if (op.type.isResult) {
 					// Input result for another operation
@@ -122,19 +121,27 @@ public class AsyncKVStoreOperator<K, V> extends AbstractUdfStreamOperator<KVOper
 					executeTransactionalOp(op);
 				}
 			} else {
-
-				Map<K, List<KVOperation<K, V>>> rows = rowsBeforeLock.get(op.transactionID);
-				if (rows == null) {
-					rows = new HashMap<>();
-					rows.put(key, Lists.newArrayList(op));
-					rowsBeforeLock.put(op.transactionID, rows);
-				} else {
-					List<KVOperation<K, V>> opList = rows.get(key);
-					if (opList == null) {
-						opList = new ArrayList<>();
-						rows.put(key, opList);
+				if (op.type.isResult) {
+					// We received a result for a operation
+					Map<K, List<KVOperation<K, V>>> rows = rowsBeforeLock.get(op.transactionID);
+					if (rows == null) {
+						rows = new HashMap<>();
+						rows.put(key, Lists.newArrayList(op));
+						rowsBeforeLock.put(op.transactionID, rows);
+					} else {
+						List<KVOperation<K, V>> opList = rows.get(key);
+						if (opList == null) {
+							opList = new ArrayList<>();
+							rows.put(key, opList);
+						}
+						opList.add(op);
 					}
-					opList.add(op);
+				} else {
+					if (op.inputOperationIDs.length > 0) {
+						throw new RuntimeException("Never received a lock for a locking operation.");
+					} else {
+						executeWithoutInputs(op, key);
+					}
 				}
 			}
 		} else {
@@ -322,7 +329,7 @@ public class AsyncKVStoreOperator<K, V> extends AbstractUdfStreamOperator<KVOper
 			output.collect(reuse.replace(out));
 		}
 
-		if (op.isPartOfTransaction) {
+		if (op.isPartOfTransaction && runningTransactions.containsKey(op.transactionID)) {
 			Map<K, Integer> runningTransaction = runningTransactions.get(op.transactionID);
 
 			int count = runningTransaction.get(key) - 1;

@@ -214,19 +214,19 @@ public class KVStore<K, V> {
 	 * 
 	 */
 	@SuppressWarnings({ "unchecked", "serial" })
-	public Query<KVOperation<K, V>> applyOperation(DataStream<? extends Operation> opStream) {
+	public Query<KVOperation<K, V>> applyOperation(DataStream<? extends Operation<K, V>> opStream) {
 		final int qid = storeBuilder.nextID();
 		storeBuilder.applyOperation(
-				((DataStream<Operation>) opStream).flatMap(new FlatMapFunction<Operation, KVOperation<K, V>>() {
+				((DataStream<Operation<K, V>>) opStream).flatMap(
+						new FlatMapFunction<Operation<K, V>, KVOperation<K, V>>() {
 
-					@SuppressWarnings("rawtypes")
-					@Override
-					public void flatMap(Operation op, Collector<KVOperation<K, V>> out) throws Exception {
-						for (KVOperation kvOp : Operation.createTransaction(qid, op)) {
-							out.collect(kvOp);
-						}
-					}
-				}).setParallelism(opStream.getParallelism()), qid);
+							@Override
+							public void flatMap(Operation<K, V> op, Collector<KVOperation<K, V>> out) throws Exception {
+								for (KVOperation<K, V> kvOp : Operation.createTransaction(qid, op)) {
+									out.collect(kvOp);
+								}
+							}
+						}).setParallelism(opStream.getParallelism()), qid);
 		Query<KVOperation<K, V>> q = new Query<KVOperation<K, V>>(qid, storeBuilder);
 		queries.add(q);
 		return q;
